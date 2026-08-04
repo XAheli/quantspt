@@ -117,7 +117,14 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = [
     "scipy.*",
+    "cvxpy.*",
+    "numba.*",
+    "jax.*",
     "matplotlib.*",
+    "plotly.*",
+    "seaborn.*",
+    "yfinance.*",
+    "pydantic.*",
     "numpy.*",
 ]
 ignore_missing_imports = true
