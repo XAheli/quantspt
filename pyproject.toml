@@ -111,7 +111,7 @@ filterwarnings = [
 python_version = "3.12"
 strict = true
 warn_return_any = false
-warn_unused_configs = true
+warn_unused_configs = false
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]

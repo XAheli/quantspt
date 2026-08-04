@@ -86,7 +86,10 @@ def relative_covariance(
         a.shape == (n, n),
         f"Covariance matrix shape {a.shape} incompatible with {n} assets",
     )
-    require(abs(pi.sum() - 1.0) < 1e-8, f"Weights must sum to 1, got {pi.sum():.8f}")
+    require(
+        bool(abs(float(pi.sum()) - 1.0) < 1e-8),
+        f"Weights must sum to 1, got {pi.sum():.8f}",
+    )
 
     a_pi = a @ pi  # (n,) vector: a^π_i = Σ_j π_j a_{ij}
     a_pipi = float(pi @ a_pi)  # scalar: π'aπ
