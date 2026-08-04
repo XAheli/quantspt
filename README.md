@@ -5,7 +5,7 @@
 [![PyPI](https://img.shields.io/pypi/v/quantspt)](https://pypi.org/project/quantspt/)
 [![Python](https://img.shields.io/pypi/pyversions/quantspt)](https://pypi.org/project/quantspt/)
 [![Tests](https://github.com/XAheli/quantspt/actions/workflows/ci.yml/badge.svg)](https://github.com/XAheli/quantspt/actions)
-[![codecov](https://codecov.io/gh/XAheli/quantspt/branch/main/graph/badge.svg)](https://codecov.io/gh/XAheli/quantspt)
+[![codecov](https://codecov.io/gh/XAheli/quantspt/graph/badge.svg?token=7FYD87VZEW)](https://codecov.io/gh/XAheli/quantspt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
