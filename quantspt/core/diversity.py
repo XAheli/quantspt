@@ -23,15 +23,15 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
-    "p_diversity",
+    "arbitrage_horizon_bound",
+    "concentration_ratio",
+    "diversity_deficit",
     "entropy",
     "herfindahl_hirschman_index",
-    "concentration_ratio",
+    "intrinsic_volatility_condition",
     "is_diverse",
     "is_weakly_diverse",
-    "diversity_deficit",
-    "arbitrage_horizon_bound",
-    "intrinsic_volatility_condition",
+    "p_diversity",
 ]
 
 
@@ -67,7 +67,7 @@ def p_diversity(
     """
     require(0 < p < 1, f"Diversity parameter p must be in (0, 1), got {p}")
     require(bool(np.all(mu > 0)), "All market weights must be strictly positive")
-    return float(np.sum(mu**p)) ** (1.0 / (1.0 - p))
+    return float(float(np.sum(mu**p)) ** (1.0 / (1.0 - p)))
 
 
 def entropy(mu: NDArray[np.float64]) -> float:
@@ -285,7 +285,7 @@ def arbitrage_horizon_bound(
     require(0 < p < 1, f"p must be in (0, 1), got {p}")
     require(eps > 0, f"Non-degeneracy constant must be positive, got {eps}")
     require(delta > 0, f"Diversity parameter must be positive, got {delta}")
-    return 2.0 * np.log(n) / (p * eps * delta)
+    return float(2.0 * np.log(n) / (p * eps * delta))
 
 
 def intrinsic_volatility_condition(

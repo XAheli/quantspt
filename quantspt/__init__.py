@@ -31,18 +31,18 @@ from quantspt.errors import (
 )
 
 __all__ = [
+    "CalibrationError",
+    "DataProviderError",
+    "DiversityConditionError",
+    "OptimizationError",
+    # Errors
+    "SPTError",
+    "SPTInvariantError",
+    # Result envelope
+    "SPTResult",
+    "SimulationDivergenceError",
     "__version__",
     # Configuration
     "get_config",
     "set_backend",
-    # Result envelope
-    "SPTResult",
-    # Errors
-    "SPTError",
-    "SPTInvariantError",
-    "DiversityConditionError",
-    "OptimizationError",
-    "SimulationDivergenceError",
-    "CalibrationError",
-    "DataProviderError",
 ]

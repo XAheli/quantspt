@@ -20,14 +20,14 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
+    "cumulative_turnover",
+    "drift_of_relative_return",
+    "holding_drift",
+    "log_relative_return",
     "portfolio_log_return",
     "portfolio_value_weights",
-    "relative_return",
-    "log_relative_return",
-    "drift_of_relative_return",
     "rebalancing_turnover",
-    "cumulative_turnover",
-    "holding_drift",
+    "relative_return",
 ]
 
 
@@ -167,7 +167,7 @@ def log_relative_return(
     """
     require(V_pi[-1] > 0, "Terminal portfolio value must be positive")
     require(V_mu[-1] > 0, "Terminal benchmark value must be positive")
-    return np.log(V_pi[-1] / V_mu[-1])
+    return float(np.log(V_pi[-1] / V_mu[-1]))
 
 
 def drift_of_relative_return(

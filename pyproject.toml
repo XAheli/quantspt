@@ -67,6 +67,7 @@ dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "mypy>=1.5",
+    "pandas-stubs>=2.0",
     "ruff>=0.1",
     "pre-commit>=3.4",
     "hypothesis>=6.80",
@@ -107,7 +108,7 @@ filterwarnings = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 strict = true
 warn_return_any = false
 warn_unused_configs = true
@@ -116,14 +117,7 @@ disallow_untyped_defs = true
 [[tool.mypy.overrides]]
 module = [
     "scipy.*",
-    "cvxpy.*",
-    "numba.*",
-    "jax.*",
     "matplotlib.*",
-    "plotly.*",
-    "seaborn.*",
-    "yfinance.*",
-    "pydantic.*",
     "numpy.*",
 ]
 ignore_missing_imports = true

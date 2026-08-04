@@ -28,10 +28,10 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
-    "EulerMaruyamaDiscretization",
-    "MilsteinDiscretization",
-    "ExactGBMDiscretization",
     "CorrelatedGBM",
+    "EulerMaruyamaDiscretization",
+    "ExactGBMDiscretization",
+    "MilsteinDiscretization",
     "simulate_path",
 ]
 
@@ -268,7 +268,8 @@ class CorrelatedGBM:
         r"""Exact GBM step via log-normal transition."""
         a_diag = np.diag(self.cov)
         log_increment = (self.mu - 0.5 * a_diag) * dt + self._cholesky @ dw
-        return x0 * np.exp(log_increment)
+        result: NDArray[np.float64] = x0 * np.exp(log_increment)
+        return result
 
 
 # ---------------------------------------------------------------------------

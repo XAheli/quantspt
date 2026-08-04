@@ -22,16 +22,16 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
-    "validate_weights",
-    "market_weight_drift",
-    "market_weight_diffusion",
-    "ranked_weights",
-    "rank_permutation",
-    "market_excess_growth_rate",
-    "coherence_residual",
-    "verify_coherence",
     "capital_distribution_curve",
+    "coherence_residual",
     "log_log_capital_curve",
+    "market_excess_growth_rate",
+    "market_weight_diffusion",
+    "market_weight_drift",
+    "rank_permutation",
+    "ranked_weights",
+    "validate_weights",
+    "verify_coherence",
 ]
 
 

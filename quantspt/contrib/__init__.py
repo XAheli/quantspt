@@ -97,13 +97,13 @@ def list_models() -> set[str]:
 
 
 __all__ = [
-    "register_data_provider",
-    "register_portfolio",
-    "register_model",
-    "discover_providers",
-    "discover_portfolios",
     "discover_models",
-    "list_providers",
-    "list_portfolios",
+    "discover_portfolios",
+    "discover_providers",
     "list_models",
+    "list_portfolios",
+    "list_providers",
+    "register_data_provider",
+    "register_model",
+    "register_portfolio",
 ]

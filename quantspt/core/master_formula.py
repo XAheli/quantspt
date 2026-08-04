@@ -25,9 +25,9 @@ from .covariance import relative_covariance
 from .generating_functions import GeneratingFunction
 
 __all__ = [
-    "master_formula_decomposition",
     "boundary_term",
     "drift_integral",
+    "master_formula_decomposition",
     "verify_master_formula",
 ]
 
@@ -67,7 +67,7 @@ def boundary_term(
     G_0 = G(mu_0)
     require(G_0 > 0, "G(μ(0)) must be positive")
     require(G_T > 0, "G(μ(T)) must be positive")
-    return np.log(G_T / G_0)
+    return float(np.log(G_T / G_0))
 
 
 def drift_integral(

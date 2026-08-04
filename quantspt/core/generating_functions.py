@@ -30,14 +30,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = [
-    "GeneratingFunction",
+    "CustomGenerator",
     "DiversityGenerator",
     "EntropyGenerator",
-    "ModifiedEntropyGenerator",
+    "GeneratingFunction",
     "InverseVolatilityGenerator",
-    "CustomGenerator",
-    "fernholz_weights",
+    "ModifiedEntropyGenerator",
     "drift_process",
+    "fernholz_weights",
 ]
 
 
@@ -193,7 +193,7 @@ class DiversityGenerator(GeneratingFunction):
 
     def __call__(self, mu: NDArray[np.float64]) -> float:
         """G_p(μ) = (Σ μ_i^p)^{1/p}."""
-        return float(np.sum(mu**self._p)) ** (1.0 / self._p)
+        return float(float(np.sum(mu**self._p)) ** (1.0 / self._p))
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         r"""D_k log G_p = (p-1) · log μ_k ... actually computed directly.
@@ -230,7 +230,8 @@ class DiversityGenerator(GeneratingFunction):
         term2_coeff = S ** (1.0 / p - 1.0) * (p - 1.0)
         term2 = term2_coeff * np.diag(mu ** (p - 2.0))
 
-        return term1 + term2
+        result: NDArray[np.float64] = term1 + term2
+        return result
 
     def weights(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         r"""Diversity-weighted portfolio: π_i = μ_i^p / Σ μ_j^p.
@@ -281,7 +282,7 @@ class EntropyGenerator(GeneratingFunction):
     def __call__(self, mu: NDArray[np.float64]) -> float:
         """G(μ) = exp(H(μ)) = exp(-Σ μ_i log μ_i)."""
         H = -float(np.sum(mu * np.log(mu)))
-        return np.exp(H)
+        return float(np.exp(H))
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         r"""D_k log G = D_k H = -(1 + log μ_k)."""

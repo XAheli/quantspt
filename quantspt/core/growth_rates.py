@@ -23,14 +23,14 @@ from .._preconditions import require
 from .covariance import portfolio_variance
 
 __all__ = [
+    "atlas_excess_growth_rate_equal_weighted",
+    "atlas_excess_growth_rate_uncorrelated",
+    "atlas_market_growth_rate",
     "excess_growth_rate",
+    "excess_growth_rate_bounds",
     "excess_growth_rate_from_tau",
     "portfolio_growth_rate",
     "relative_performance_rate",
-    "excess_growth_rate_bounds",
-    "atlas_excess_growth_rate_uncorrelated",
-    "atlas_excess_growth_rate_equal_weighted",
-    "atlas_market_growth_rate",
 ]
 
 

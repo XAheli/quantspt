@@ -20,13 +20,13 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
-    "relative_covariance",
-    "portfolio_variance",
-    "portfolio_covariance_vector",
     "non_degeneracy_bounds",
-    "verify_non_degeneracy",
-    "tau_diagonal",
+    "portfolio_covariance_vector",
+    "portfolio_variance",
+    "relative_covariance",
     "tau_bounds",
+    "tau_diagonal",
+    "verify_non_degeneracy",
 ]
 
 
@@ -91,7 +91,7 @@ def relative_covariance(
     a_pi = a @ pi  # (n,) vector: a^π_i = Σ_j π_j a_{ij}
     a_pipi = float(pi @ a_pi)  # scalar: π'aπ
 
-    tau = a - np.add.outer(a_pi, a_pi) + a_pipi
+    tau: NDArray[np.float64] = a - np.add.outer(a_pi, a_pi) + a_pipi
     return tau
 
 

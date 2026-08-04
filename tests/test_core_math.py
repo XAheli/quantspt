@@ -200,7 +200,7 @@ class TestExcessGrowthRate:
 
     def test_non_negative_long_only(self, three_stock_correlated):
         """γ* ≥ 0 for any long-only portfolio (F&K Lemma 3.3)."""
-        a, mu = three_stock_correlated
+        a, _mu = three_stock_correlated
         # Random long-only portfolios
         rng = np.random.default_rng(42)
         for _ in range(100):
@@ -217,7 +217,7 @@ class TestExcessGrowthRate:
 
     def test_bounds_hold(self, three_stock_correlated):
         """Verify FKK Eq. 5.12 bounds on γ*_π."""
-        a, mu = three_stock_correlated
+        a, _mu = three_stock_correlated
         eps, M = non_degeneracy_bounds(a)
         rng = np.random.default_rng(123)
         for _ in range(50):
