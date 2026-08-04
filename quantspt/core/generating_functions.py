@@ -224,7 +224,7 @@ class DiversityGenerator(GeneratingFunction):
         S = float(np.sum(mu**p))
         mu_pm1 = mu ** (p - 1.0)
 
-        term1_coeff = S ** (1.0 / p - 2.0) * (1.0 / p - 1.0)
+        term1_coeff = S ** (1.0 / p - 2.0) * (1.0 - p)
         term1 = term1_coeff * np.outer(mu_pm1, mu_pm1)
 
         term2_coeff = S ** (1.0 / p - 1.0) * (p - 1.0)
