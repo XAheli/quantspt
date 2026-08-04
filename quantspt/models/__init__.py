@@ -1,24 +1,31 @@
 """Abstract market models (continuous-time).
 
-All models implement the ``StochasticProcess`` protocol, making them
+All models implement the :class:`MarketModel` protocol, making them
 consumable by any simulator without the simulator knowing the model type.
 
 Submodules
 ----------
 base
-    ``MarketModel`` protocol — the common interface for all models.
+    :class:`MarketModel` — the abstract base for all models.
 gbm
-    Correlated Geometric Brownian Motion (baseline model).
+    :class:`CorrelatedGBMMarket` — Correlated Geometric Brownian Motion.
 atlas
-    Atlas model (Banner, Fernholz & Karatzas, 2005).
-first_order
-    General first-order rank-based models (BFK Eq. 1.6).
+    :class:`AtlasModel`, :class:`FirstOrderModel` — Atlas model
+    (Banner, Fernholz & Karatzas, 2005).
 volatility_stabilized
-    Volatility-stabilised market (Lukacs §12, F&K §14).
-diverse_market
-    Log-pole repulsion models (FKK Theorem 6.1).
-hybrid
-    Regime-switching and mixture models.
+    :class:`VolatilityStabilizedMarket` — Volatility-stabilised market
+    (Lukacs §12, F&K Survey §14).
 """
 
-__all__: list[str] = []
+from .atlas import AtlasModel, FirstOrderModel
+from .base import MarketModel
+from .gbm import CorrelatedGBMMarket
+from .volatility_stabilized import VolatilityStabilizedMarket
+
+__all__ = [
+    "AtlasModel",
+    "CorrelatedGBMMarket",
+    "FirstOrderModel",
+    "MarketModel",
+    "VolatilityStabilizedMarket",
+]
