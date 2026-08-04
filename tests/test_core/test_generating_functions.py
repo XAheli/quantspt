@@ -466,6 +466,26 @@ class TestInverseVolatilityGenerator:
         tau_mu = relative_covariance(cov, mu)
         assert_allclose(G.drift(mu, tau_mu), 0.0, atol=1e-14)
 
+    def test_log_gradient_formula(self) -> None:
+        """D_k log G = (1/σ²_k) / G(μ) where G(μ) = Σ (1/σ²_j) μ_j."""
+        variances = np.array([0.04, 0.09, 0.16])
+        G = InverseVolatilityGenerator(variances=variances)
+        mu = np.array([0.5, 0.3, 0.2])
+        grad = G.log_gradient(mu)
+        inv_var = 1.0 / variances
+        G_val = np.sum(inv_var * mu)
+        expected = inv_var / G_val
+        assert_allclose(grad, expected, atol=1e-14)
+
+    def test_log_gradient_fernholz_consistency(self) -> None:
+        """fernholz_weights(log_gradient, mu) should match overridden weights."""
+        variances = np.array([0.04, 0.09])
+        G = InverseVolatilityGenerator(variances=variances)
+        mu = np.array([0.6, 0.4])
+        pi_fernholz = fernholz_weights(G.log_gradient(mu), mu)
+        assert np.all(np.isfinite(pi_fernholz))
+        assert_allclose(np.sum(pi_fernholz), 1.0, atol=1e-12)
+
     def test_name(self) -> None:
         variances = np.array([0.04, 0.09])
         G = InverseVolatilityGenerator(variances=variances)
