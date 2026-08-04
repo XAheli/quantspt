@@ -1,0 +1,8 @@
+{
+    "project_name": "quantspt-my-provider",
+    "package_name": "quantspt_my_provider",
+    "provider_name": "my_provider",
+    "author": "Your Name",
+    "email": "you@example.com",
+    "description": "A quantspt data provider for ..."
+}
