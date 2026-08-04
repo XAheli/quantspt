@@ -16,6 +16,12 @@ generating_functions
     Functionally Generated Portfolio (FGP) framework.
 master_formula
     Master formula verification and decomposition.
+market
+    Market weight dynamics, ranked weights, and coherence.
+portfolio
+    Portfolio value process, relative returns, and turnover.
+processes
+    Stochastic process implementations and discretisation schemes.
 """
 
 from .covariance import (
@@ -57,11 +63,40 @@ from .growth_rates import (
     portfolio_growth_rate,
     relative_performance_rate,
 )
+from .market import (
+    capital_distribution_curve,
+    coherence_residual,
+    log_log_capital_curve,
+    market_excess_growth_rate,
+    market_weight_diffusion,
+    market_weight_drift,
+    rank_permutation,
+    ranked_weights,
+    validate_weights,
+    verify_coherence,
+)
 from .master_formula import (
     boundary_term,
     drift_integral,
     master_formula_decomposition,
     verify_master_formula,
+)
+from .portfolio import (
+    cumulative_turnover,
+    drift_of_relative_return,
+    holding_drift,
+    log_relative_return,
+    portfolio_log_return,
+    portfolio_value_weights,
+    rebalancing_turnover,
+    relative_return,
+)
+from .processes import (
+    CorrelatedGBM,
+    EulerMaruyamaDiscretization,
+    ExactGBMDiscretization,
+    MilsteinDiscretization,
+    simulate_path,
 )
 
 __all__ = [
@@ -105,4 +140,30 @@ __all__ = [
     "drift_integral",
     "master_formula_decomposition",
     "verify_master_formula",
+    # market
+    "validate_weights",
+    "market_weight_drift",
+    "market_weight_diffusion",
+    "ranked_weights",
+    "rank_permutation",
+    "market_excess_growth_rate",
+    "coherence_residual",
+    "verify_coherence",
+    "capital_distribution_curve",
+    "log_log_capital_curve",
+    # portfolio
+    "portfolio_log_return",
+    "portfolio_value_weights",
+    "relative_return",
+    "log_relative_return",
+    "drift_of_relative_return",
+    "rebalancing_turnover",
+    "cumulative_turnover",
+    "holding_drift",
+    # processes
+    "EulerMaruyamaDiscretization",
+    "MilsteinDiscretization",
+    "ExactGBMDiscretization",
+    "CorrelatedGBM",
+    "simulate_path",
 ]
