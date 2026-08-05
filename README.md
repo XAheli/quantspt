@@ -7,6 +7,8 @@
 [![Tests](https://github.com/XAheli/quantspt/actions/workflows/ci.yml/badge.svg)](https://github.com/XAheli/quantspt/actions)
 [![codecov](https://codecov.io/gh/XAheli/quantspt/graph/badge.svg?token=7FYD87VZEW)](https://codecov.io/gh/XAheli/quantspt)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa)](https://github.com/sponsors/XAheli)
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow)](https://buymeacoffee.com/ahelipoddar)
 
 ---
 
