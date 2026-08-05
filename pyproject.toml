@@ -63,6 +63,19 @@ data = [
     "yfinance>=0.2",
     "pydantic>=2.0",
 ]
+ml = [
+    "torch>=2.0",
+    "optuna>=3.0",
+    "hmmlearn>=0.3",
+    "ruptures>=1.1",
+]
+causal = [
+    "pgmpy>=0.0.21",
+    "networkx>=3.1",
+]
+research = [
+    "quantspt[viz,opt,sim,data,ml,causal]",
+]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
@@ -73,7 +86,7 @@ dev = [
     "hypothesis>=6.80",
 ]
 all = [
-    "quantspt[viz,opt,sim,data,dev]",
+    "quantspt[viz,opt,sim,data,dev,ml,causal]",
 ]
 
 [project.urls]
@@ -126,6 +139,12 @@ module = [
     "yfinance.*",
     "pydantic.*",
     "numpy.*",
+    "torch.*",
+    "optuna.*",
+    "hmmlearn.*",
+    "ruptures.*",
+    "pgmpy.*",
+    "networkx.*",
 ]
 ignore_missing_imports = true
 
