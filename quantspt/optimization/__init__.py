@@ -21,12 +21,20 @@ from .constraints import (
     sector_constraints,
     turnover_constraint,
 )
+from .generating_function import (
+    OptimizationResult,
+    optimize_diversity_parameter,
+    optimize_generator_parameter,
+)
 from .growth_rate import optimize_growth_rate
 from .transaction_costs import net_growth_rate, proportional_cost, sqrt_market_impact
 
 __all__ = [
     "ConstraintSet",
+    "OptimizationResult",
     "net_growth_rate",
+    "optimize_diversity_parameter",
+    "optimize_generator_parameter",
     "optimize_growth_rate",
     "position_limit_constraints",
     "proportional_cost",
