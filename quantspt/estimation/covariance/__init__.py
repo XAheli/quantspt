@@ -3,15 +3,17 @@
 Submodules
 ----------
 sample
-    Sample covariance with annualisation and corrections.
+    Sample covariance with annualisation and rolling windows.
 shrinkage
-    Ledoit-Wolf and Oracle Approximating Shrinkage.
-factor_model
-    Statistical and fundamental factor models.
-rmt
-    Random Matrix Theory denoising.
-sparse
-    Graphical lasso and banding estimators.
+    Ledoit-Wolf and Oracle Approximating Shrinkage estimators.
 """
 
-__all__: list[str] = []
+from .sample import rolling_sample_covariance, sample_covariance
+from .shrinkage import ledoit_wolf, oracle_approximating_shrinkage
+
+__all__ = [
+    "ledoit_wolf",
+    "oracle_approximating_shrinkage",
+    "rolling_sample_covariance",
+    "sample_covariance",
+]
