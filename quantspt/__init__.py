@@ -49,34 +49,28 @@ from quantspt.models import (
 from quantspt.optimization import ConstraintSet, optimize_growth_rate
 
 __all__ = [
-    # Models
     "AtlasModel",
+    "CalibrationError",
+    "ConstraintSet",
     "CorrelatedGBM",
     "CorrelatedGBMMarket",
-    "FirstOrderModel",
-    "MarketModel",
-    "VolatilityStabilizedMarket",
-    # Generating functions
     "CustomGenerator",
-    "DiversityGenerator",
-    "EntropyGenerator",
-    "GeneratingFunction",
-    "ModifiedEntropyGenerator",
-    # Optimization
-    "ConstraintSet",
-    "optimize_growth_rate",
-    # Errors
-    "CalibrationError",
     "DataProviderError",
     "DiversityConditionError",
+    "DiversityGenerator",
+    "EntropyGenerator",
+    "FirstOrderModel",
+    "GeneratingFunction",
+    "MarketModel",
+    "ModifiedEntropyGenerator",
     "OptimizationError",
     "SPTError",
     "SPTInvariantError",
-    "SimulationDivergenceError",
-    # Result envelope
     "SPTResult",
-    # Configuration
+    "SimulationDivergenceError",
+    "VolatilityStabilizedMarket",
     "__version__",
     "get_config",
+    "optimize_growth_rate",
     "set_backend",
 ]
