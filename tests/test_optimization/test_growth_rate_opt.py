@@ -211,3 +211,24 @@ class TestStatusAndEdgeCases:
         cov = np.eye(3) * 0.04
         with pytest.raises(SPTInvariantError, match="incompatible"):
             optimize_growth_rate(gamma, cov)
+
+    def test_extra_constraints_empty(self) -> None:
+        """Empty extra constraints list is consumed without error."""
+        gamma = np.array([0.10, 0.05, 0.03])
+        cov = np.diag([0.04, 0.04, 0.04])
+
+        result = optimize_growth_rate(gamma, cov, extra_constraints=[])
+        assert result["status"] in ("optimal", "optimal_inaccurate")
+
+    def test_extra_constraints_nonempty(self) -> None:
+        """Non-empty extra constraints are appended to the problem."""
+        import cvxpy as cp
+
+        gamma = np.array([0.10, 0.05, 0.03])
+        cov = np.diag([0.04, 0.04, 0.04])
+        n = len(gamma)
+        pi_var = cp.Variable(n)
+        extra = [pi_var[0] <= 0.5]
+
+        result = optimize_growth_rate(gamma, cov, extra_constraints=extra)
+        assert result["status"] in ("optimal", "optimal_inaccurate")

@@ -114,3 +114,42 @@ class TestConstraintHelpers:
         result = turnover_constraint(0.2, prev)
         assert result["max_turnover"] == 0.2
         assert_allclose(result["prev_weights"], prev)
+
+    def test_sector_constraints_standalone(self) -> None:
+        """Test the standalone sector_constraints function."""
+        import cvxpy as cp
+
+        from quantspt.optimization.constraints import sector_constraints
+
+        pi = cp.Variable(4)
+        constraints = sector_constraints(
+            pi,
+            sector_map={"tech": [0, 1], "fin": [2, 3]},
+            sector_bounds={"tech": (0.2, 0.5), "fin": (0.3, 0.7)},
+        )
+        assert len(constraints) == 4
+
+    def test_sector_constraints_missing_sector(self) -> None:
+        """Sectors not in bounds are skipped."""
+        import cvxpy as cp
+
+        from quantspt.optimization.constraints import sector_constraints
+
+        pi = cp.Variable(4)
+        constraints = sector_constraints(
+            pi,
+            sector_map={"tech": [0, 1], "energy": [2, 3]},
+            sector_bounds={"tech": (0.2, 0.5)},
+        )
+        assert len(constraints) == 2
+
+    def test_to_cvxpy_with_turnover(self) -> None:
+        """Test ConstraintSet.to_cvxpy with turnover constraint."""
+        import cvxpy as cp
+
+        cs = ConstraintSet()
+        prev = np.array([0.4, 0.3, 0.3])
+        cs.add_turnover(0.15, prev)
+        pi = cp.Variable(3)
+        constraints = cs.to_cvxpy(pi)
+        assert len(constraints) >= 1

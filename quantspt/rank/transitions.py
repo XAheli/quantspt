@@ -102,7 +102,8 @@ def expected_sojourn_times(
 
     diag = np.diag(transition_matrix)
     leaving_prob = 1.0 - diag
-    return np.where(leaving_prob > 0, 1.0 / leaving_prob, np.inf)
+    with np.errstate(divide="ignore"):
+        return np.where(leaving_prob > 0, 1.0 / leaving_prob, np.inf)
 
 
 def rank_mobility_index(

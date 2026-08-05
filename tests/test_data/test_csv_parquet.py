@@ -162,3 +162,81 @@ class TestParquetProvider:
         provider = ParquetProvider(sample_parquet)
         result = provider.load()
         assert result.metadata["provider"] == "ParquetProvider"
+
+    def test_date_filtering(self, sample_parquet: Path) -> None:
+        provider = ParquetProvider(sample_parquet)
+        result = provider.load(start="2020-01-06", end="2020-01-17")
+        assert result.data.n_observations <= 20
+
+    def test_missing_ticker(self, sample_parquet: Path) -> None:
+        provider = ParquetProvider(sample_parquet)
+        with pytest.raises(DataProviderError, match="not found"):
+            provider.load(tickers=["TSLA"])
+
+
+class TestCSVDateEdgeCases:
+    """Cover date-parsing edge cases in csv_parquet.py."""
+
+    def test_timestamp_column_name(self, tmp_path: Path) -> None:
+        """A column named 'timestamp' should be auto-detected."""
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2020-01-01", periods=5, freq="B"),
+                "A": [1.0, 2.0, 3.0, 4.0, 5.0],
+            }
+        )
+        path = tmp_path / "ts_col.csv"
+        df.to_csv(path, index=False)
+
+        provider = CSVProvider(path)
+        result = provider.load()
+        assert result.data.n_observations == 5
+
+    def test_datetime64_dtype_detection(self, tmp_path: Path) -> None:
+        """A Parquet file with a non-standard datetime column should be
+        detected by dtype, not name."""
+        dates = pd.date_range("2020-01-01", periods=5, freq="B")
+        df = pd.DataFrame({"my_dt": dates, "A": [1.0, 2.0, 3.0, 4.0, 5.0]})
+        path = tmp_path / "dt_dtype.parquet"
+        df.to_parquet(path, index=False)
+
+        provider = ParquetProvider(path)
+        result = provider.load()
+        assert result.data.n_observations == 5
+
+    def test_index_as_date(self, tmp_path: Path) -> None:
+        """CSV written with DatetimeIndex should be parseable."""
+        dates = pd.date_range("2020-06-01", periods=4, freq="B")
+        df = pd.DataFrame({"X": [10, 20, 30, 40]}, index=dates)
+        df.index.name = "date"
+        path = tmp_path / "indexed.csv"
+        df.to_csv(path)
+
+        provider = CSVProvider(path)
+        result = provider.load()
+        assert result.data.n_observations == 4
+
+    def test_string_date_params(self, tmp_path: Path) -> None:
+        """Verify string start/end params are handled in transform_query."""
+        dates = pd.date_range("2020-01-01", periods=10, freq="B")
+        df = pd.DataFrame(
+            {"date": dates, "A": range(10)},
+        )
+        path = tmp_path / "str_dates.csv"
+        df.to_csv(path, index=False)
+
+        provider = CSVProvider(path)
+        result = provider.load(start="2020-01-03", end="2020-01-10")
+        assert result.data.n_observations <= 10
+
+    def test_parquet_string_date_params(self, tmp_path: Path) -> None:
+        """Verify string start/end params work for ParquetProvider."""
+        dates = pd.date_range("2021-01-01", periods=10, freq="B")
+        df = pd.DataFrame({"A": range(10)}, index=dates)
+        df.index.name = "date"
+        path = tmp_path / "str_pq.parquet"
+        df.to_parquet(path)
+
+        provider = ParquetProvider(path)
+        result = provider.load(start="2021-01-05", end="2021-01-12")
+        assert result.data.n_observations <= 10

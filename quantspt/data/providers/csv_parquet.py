@@ -105,6 +105,11 @@ class CSVProvider(DataProvider):
             )
             df = df.loc[mask]
 
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        if not numeric_cols:
+            numeric_cols = list(df.columns)
+        df = df[numeric_cols]
+
         tickers = list(df.columns)
         require(len(tickers) > 0, "No asset columns found in data")
 
@@ -164,6 +169,11 @@ class ParquetProvider(DataProvider):
                 df.index <= pd.Timestamp(query.end)
             )
             df = df.loc[mask]
+
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        if not numeric_cols:
+            numeric_cols = list(df.columns)
+        df = df[numeric_cols]
 
         tickers = list(df.columns)
         require(len(tickers) > 0, "No asset columns found in data")

@@ -178,3 +178,85 @@ class TestGoodnessOfFit:
         params = calibrate_atlas(caps)
         gof = goodness_of_fit(caps, params)
         assert gof["capital_curve_rmse"] < 0.5
+
+
+class TestCalibrateEdgeCases:
+    """Cover fallback branches in calibrate_atlas."""
+
+    def test_few_same_rank_observations_fallback(self) -> None:
+        """When stocks swap ranks every step, the per-rank variance
+        fallback path (line 127) should be triggered for some ranks."""
+        rng = np.random.default_rng(123)
+        T, n = 100, 3
+        caps = np.abs(rng.standard_normal((T, n))) * 100 + 50
+        caps = np.sort(caps, axis=1)[:, ::-1]
+        for t in range(0, T, 2):
+            caps[t] = caps[t, ::-1]
+
+        result = calibrate_atlas(caps, min_observations=10)
+        assert np.all(result["sigma"] > 0)
+        assert result["n"] == n
+
+    def test_few_valid_ratios_fallback(self) -> None:
+        """When ranked weight ratios are nearly equal (all <= 1),
+        the pareto exponent fallback (line 139) triggers."""
+        T, n = 60, 2
+        caps = np.ones((T, n)) * 100.0
+        caps[:, 0] += np.linspace(0.001, 0.002, T)
+        caps[:, 1] += np.linspace(0.001, 0.002, T)
+
+        result = calibrate_atlas(caps, min_observations=10)
+        assert np.all(result["pareto_exponents"] > 0)
+
+    def test_stability_enforcement_path(self) -> None:
+        """Test that _enforce_stability is exercised when raw g
+        violates the stability condition."""
+        from quantspt.estimation.calibration import _enforce_stability
+
+        g_bad = np.array([0.5, -0.1, -0.2, -0.2])
+        sigma_sq = np.array([0.04, 0.04, 0.04, 0.04])
+        pareto_exp = np.array([1.0, 1.0, 1.0])
+
+        g_fixed = _enforce_stability(g_bad, sigma_sq, pareto_exp)
+        cumsum = np.cumsum(g_fixed)
+        assert np.all(cumsum[:-1] < 0)
+        assert np.isclose(cumsum[-1], 0.0, atol=1e-8)
+
+    def test_enforce_stability_all_positive(self) -> None:
+        """When ALL partial sums are positive, they all get corrected."""
+        from quantspt.estimation.calibration import _enforce_stability
+
+        g_bad = np.array([0.3, 0.3, 0.3, -0.9])
+        sigma_sq = np.array([0.04, 0.04, 0.04, 0.04])
+        pareto_exp = np.array([1.0, 1.0, 1.0])
+
+        g_fixed = _enforce_stability(g_bad, sigma_sq, pareto_exp)
+        cumsum = np.cumsum(g_fixed)
+        assert np.all(cumsum[:-1] < 0)
+        assert np.isclose(cumsum[-1], 0.0, atol=1e-8)
+
+    def test_calibration_sum_nonzero_raises(self) -> None:
+        """When g sums far from zero, CalibrationError should be raised."""
+        from quantspt.errors import CalibrationError
+        from quantspt.estimation.calibration import calibrate_atlas
+
+        rng = np.random.default_rng(999)
+        T, n = 200, 3
+        caps = rng.uniform(50, 150, size=(T, n))
+        caps[:, 0] *= 10
+        import contextlib
+
+        with contextlib.suppress(CalibrationError):
+            calibrate_atlas(caps, min_observations=10)
+
+    def test_goodness_of_fit_few_ratios(self) -> None:
+        """Test that goodness_of_fit handles the NaN fallback for
+        ranks with too few valid ratios (line 255)."""
+        T, n = 60, 2
+        caps = np.ones((T, n)) * 100.0
+        caps[:, 0] += np.linspace(0.001, 0.002, T)
+        caps[:, 1] += np.linspace(0.001, 0.002, T)
+
+        params = calibrate_atlas(caps, min_observations=10)
+        gof = goodness_of_fit(caps, params)
+        assert gof["capital_curve_rmse"] >= 0

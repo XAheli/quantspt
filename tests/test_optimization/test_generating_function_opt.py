@@ -313,3 +313,80 @@ class TestIntegration:
 
         assert result.optimal_value >= result.grid_values[0] - 1e-10
         assert result.optimal_value >= result.grid_values[-1] - 1e-10
+
+
+# =========================================================================
+# E. Coverage: ndarray cov, zero-std, refinement
+# =========================================================================
+
+
+class TestNdarrayCovMatrices:
+    """Test with 3-D ndarray covariance matrices (vs list)."""
+
+    def test_mean_drift_with_ndarray_cov(self) -> None:
+        """Passing cov_matrices as a 3-D ndarray should work."""
+        rng = np.random.default_rng(42)
+        n = 3
+        T = 20
+        weights = rng.dirichlet(np.ones(n), size=T)
+        cov_3d = np.array([np.diag(rng.uniform(0.01, 0.1, n)) for _ in range(T)])
+
+        result = optimize_diversity_parameter(weights, cov_3d, n_grid=5, refine=False)
+        assert result.optimal_param > 0
+
+    def test_sharpe_with_ndarray_cov(self) -> None:
+        """Sharpe objective with 3-D ndarray cov_matrices."""
+        rng = np.random.default_rng(42)
+        n = 3
+        T = 20
+        weights = rng.dirichlet(np.ones(n), size=T)
+        cov_3d = np.array([np.diag(rng.uniform(0.01, 0.1, n)) for _ in range(T)])
+
+        result = optimize_diversity_parameter(
+            weights, cov_3d, n_grid=5, refine=False, objective="sharpe"
+        )
+        assert result.optimal_param > 0
+
+
+class TestZeroStdFallback:
+    """Cover the zero-std branch in _sharpe_of_relative_return."""
+
+    def test_constant_drift_sharpe(self) -> None:
+        """When all drifts are identical, std=0 and the fallback triggers."""
+        T = 10
+        mu = np.array([0.5, 0.3, 0.2])
+        weights = np.tile(mu, (T, 1))
+        cov = np.diag([0.04, 0.04, 0.04])
+        covs = [cov] * T
+
+        result = optimize_generator_parameter(
+            lambda p: DiversityGenerator(p),
+            weights,
+            covs,
+            param_range=(0.3, 0.7),
+            n_grid=3,
+            refine=False,
+            objective="sharpe",
+        )
+        assert result.optimal_value >= 0
+
+
+class TestRefinementPath:
+    """Ensure the Brent refinement path is exercised."""
+
+    def test_refinement_improves_or_matches(self) -> None:
+        """With refine=True, the result should be >= grid-only result."""
+        rng = np.random.default_rng(42)
+        n = 4
+        T = 30
+        weights = rng.dirichlet(np.ones(n), size=T)
+        covs = [np.diag(rng.uniform(0.02, 0.08, n)) for _ in range(T)]
+
+        result_no_refine = optimize_diversity_parameter(
+            weights, covs, n_grid=5, refine=False
+        )
+        result_refine = optimize_diversity_parameter(
+            weights, covs, n_grid=5, refine=True
+        )
+        assert result_refine.optimal_value >= result_no_refine.optimal_value - 1e-10
+        assert result_refine.method in ("grid", "grid+brent")
