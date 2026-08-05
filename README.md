@@ -3,12 +3,12 @@
 **Stochastic Portfolio Theory for Python**
 
 [![PyPI](https://img.shields.io/pypi/v/quantspt)](https://pypi.org/project/quantspt/)
-[![Python](https://img.shields.io/pypi/pyversions/quantspt)](https://pypi.org/project/quantspt/)
-[![Tests](https://github.com/XAheli/quantspt/actions/workflows/ci.yml/badge.svg)](https://github.com/XAheli/quantspt/actions)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue?logo=python&logoColor=white)](https://pypi.org/project/quantspt/)
+[![CI](https://github.com/XAheli/quantspt/actions/workflows/ci.yml/badge.svg)](https://github.com/XAheli/quantspt/actions)
 [![codecov](https://codecov.io/gh/XAheli/quantspt/graph/badge.svg?token=7FYD87VZEW)](https://codecov.io/gh/XAheli/quantspt)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/XAheli)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=000000)](https://www.buymeacoffee.com/ahelipoddar)
+[![MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Sponsor](https://img.shields.io/badge/sponsor-❤-ea4aaa?logo=github-sponsors)](https://github.com/sponsors/XAheli)
+[![Buy Me A Coffee](https://img.shields.io/badge/buy%20me%20a%20coffee-ffdd00?logo=buy-me-a-coffee&logoColor=000000)](https://www.buymeacoffee.com/ahelipoddar)
 
 ---
 
