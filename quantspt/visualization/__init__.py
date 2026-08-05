@@ -10,15 +10,31 @@ capital_distribution
 rank_dynamics
     Rank changes over time, heatmaps.
 portfolio_weights
-    Weight evolution and treemaps.
+    Weight evolution and strategy comparison.
 performance
-    Cumulative returns, drawdowns, and attribution charts.
-model_diagnostics
-    QQ-plots, convergence analysis, residual plots.
-interactive
-    Plotly-based interactive versions.
-export
-    LaTeX, PDF, and Excel/Jupyter report generation.
+    Cumulative returns, relative performance, and attribution.
 """
 
-__all__: list[str] = []
+from .capital_distribution import (
+    plot_capital_distribution,
+    plot_capital_distribution_evolution,
+)
+from .performance import (
+    plot_cumulative_returns,
+    plot_master_formula_decomposition,
+    plot_relative_performance,
+)
+from .portfolio_weights import plot_weight_comparison, plot_weight_evolution
+from .rank_dynamics import plot_rank_changes, plot_rank_transition_heatmap
+
+__all__ = [
+    "plot_capital_distribution",
+    "plot_capital_distribution_evolution",
+    "plot_cumulative_returns",
+    "plot_master_formula_decomposition",
+    "plot_rank_changes",
+    "plot_rank_transition_heatmap",
+    "plot_relative_performance",
+    "plot_weight_comparison",
+    "plot_weight_evolution",
+]
