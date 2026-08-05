@@ -70,8 +70,10 @@ site/
 # Reference papers (kept locally, not in git)
 papers_refs/
 
-# REVAMP_PLAN (development reference, not shipped)
+# Internal design documents (not shipped)
 REVAMP_PLAN.md
+ML_INTEGRATION_PLAN.md
+IMPLEMENTATION_STATUS.md
 
 # Environment
 .env
