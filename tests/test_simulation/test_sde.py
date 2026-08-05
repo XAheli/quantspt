@@ -110,7 +110,7 @@ class TestAdaptiveEM:
 
     def test_multi_asset(self, two_asset_gbm: CorrelatedGBM) -> None:
         rng = np.random.default_rng(42)
-        times, path = adaptive_euler_maruyama(
+        _times, path = adaptive_euler_maruyama(
             two_asset_gbm, T=0.5, dt_init=0.01, rng=rng
         )
         assert path.shape[1] == 2

@@ -143,14 +143,14 @@ class ConstraintSet:
 
         if self.max_turnover is not None and self.prev_weights is not None:
             constraints.append(
-                cp.norm1(pi - self.prev_weights) <= 2 * self.max_turnover  # type: ignore[operator]
+                cp.norm1(pi - self.prev_weights) <= 2 * self.max_turnover  # type: ignore[attr-defined, operator]
             )
 
         if self.sector_map is not None and self.sector_bounds is not None:
             for sector, indices in self.sector_map.items():
                 if sector in self.sector_bounds:
                     lo, hi = self.sector_bounds[sector]
-                    sector_sum = cp.sum(pi[indices])  # type: ignore[index]
+                    sector_sum = cp.sum(pi[indices])  # type: ignore[attr-defined, index]
                     constraints.append(sector_sum >= lo)
                     constraints.append(sector_sum <= hi)
 
@@ -261,7 +261,7 @@ def sector_constraints(
     for sector, indices in sector_map.items():
         if sector in sector_bounds:
             lo, hi = sector_bounds[sector]
-            sector_sum = cp.sum(pi[indices])  # type: ignore[index]
+            sector_sum = cp.sum(pi[indices])  # type: ignore[attr-defined, index]
             constraints.append(sector_sum >= lo)
             constraints.append(sector_sum <= hi)
     return constraints

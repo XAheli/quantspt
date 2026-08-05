@@ -164,7 +164,7 @@ def construct_arbitrage_portfolio(
         p = kwargs.get("p", 0.5)
         return diversity_arbitrage_portfolio(mu, p=p)
     elif method == "entropy":
-        c = kwargs.get("c", None)
+        c = kwargs.get("c")
         return modified_entropy_arbitrage_portfolio(mu, c=c)
     else:
         msg = f"Unknown method '{method}'. Use 'diversity' or 'entropy'."

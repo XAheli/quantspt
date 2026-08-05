@@ -48,7 +48,7 @@ class TestStabilityCondition:
 
     def test_rejects_positive_partial_sum(self) -> None:
         g = np.array([0.02, -0.03, -0.01, 0.02])  # g1 > 0
-        with pytest.raises(Exception, match="[Ss]tability"):
+        with pytest.raises(Exception, match=r"[Ss]tability"):
             FirstOrderModel(n=4, gamma=0.05, g=g, sigma=np.full(4, 0.3))
 
     def test_rejects_nonpositive_sigma(self) -> None:

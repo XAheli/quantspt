@@ -110,14 +110,20 @@ def adaptive_milstein(
     dt_init: float,
     rng: np.random.Generator,
     atol: float = 1e-4,
+    rtol: float = 1e-3,
     dt_min: float = 1e-6,
     dt_max: float | None = None,
+    max_steps: int = 500_000,
     diffusion_deriv: object | None = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     r"""Milstein scheme with adaptive step-size control (1-D only).
 
     Uses step-doubling error estimation with the Milstein correction
     for improved local accuracy.
+
+    The acceptance criterion uses mixed tolerance
+    ``atol + rtol * max(|x|)`` so the step size scales with the
+    solution magnitude.
 
     Parameters
     ----------
@@ -130,11 +136,15 @@ def adaptive_milstein(
     rng : numpy.random.Generator
         Random number generator.
     atol : float
-        Absolute error tolerance.
+        Absolute error tolerance component.
+    rtol : float
+        Relative error tolerance component, scaled by ``max(|x|)``.
     dt_min : float
         Minimum step size.
     dt_max : float, optional
         Maximum step size.  Defaults to ``dt_init * 4``.
+    max_steps : int
+        Safety limit on total accepted steps to prevent hangs.
     diffusion_deriv : callable, optional
         Analytical dσ/dx.
 
@@ -166,6 +176,7 @@ def adaptive_milstein(
     t = 0.0
     x = process.initial_values()
     dt = dt_init
+    n_accepted = 0
 
     while t < T - 1e-14:
         dt = min(dt, T - t)
@@ -181,14 +192,19 @@ def adaptive_milstein(
         x_double = mil.evolve(process, t + dt / 2.0, x_half, dt / 2.0, dw2)
 
         error = float(np.max(np.abs(x_full - x_double)))
+        tol = atol + rtol * float(np.max(np.abs(x)))
 
-        if error < atol or dt <= dt_min:
+        if error < tol or dt <= dt_min:
             x = x_double
             t += dt
             times_list.append(t)
             path_list.append(x.copy())
+            n_accepted += 1
 
-            if error < atol * 0.1 and dt < dt_max:
+            if n_accepted >= max_steps:
+                break
+
+            if error < tol * 0.1 and dt < dt_max:
                 dt = min(dt * 2.0, dt_max)
         else:
             dt = max(dt * 0.5, dt_min)

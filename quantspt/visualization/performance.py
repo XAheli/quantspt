@@ -136,7 +136,7 @@ def plot_relative_performance(
         1.0,
         relative,
         alpha=0.2,
-        where=relative >= 1.0,
+        where=(relative >= 1.0).tolist(),
         color="green",
     )
     ax.fill_between(
@@ -144,7 +144,7 @@ def plot_relative_performance(
         1.0,
         relative,
         alpha=0.2,
-        where=relative < 1.0,
+        where=(relative < 1.0).tolist(),
         color="red",
     )
 

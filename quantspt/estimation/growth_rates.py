@@ -85,7 +85,7 @@ def estimate_growth_rates(
         f"log_returns must be 2-D, got shape {log_returns.shape}",
     )
 
-    T, n = log_returns.shape
+    T, _n = log_returns.shape
     if min_observations is None:
         min_observations = 10
     require(

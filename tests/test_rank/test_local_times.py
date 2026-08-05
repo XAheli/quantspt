@@ -51,7 +51,7 @@ class TestAnalyticalLocalTimeRates:
 
     def test_rejects_unstable(self) -> None:
         g = np.array([0.02, -0.03, 0.01])
-        with pytest.raises(Exception, match="[Ss]tability"):
+        with pytest.raises(Exception, match=r"[Ss]tability"):
             local_time_rates_analytical(g)
 
     def test_matches_atlas_model(self) -> None:

@@ -86,7 +86,7 @@ def plot_capital_distribution(
     else:
         fig = ax.get_figure()
 
-    plot_kwargs = {"marker": "o", "markersize": 3, "linewidth": 1}
+    plot_kwargs: dict[str, Any] = {"marker": "o", "markersize": 3, "linewidth": 1}
     plot_kwargs.update(kwargs)
     ax.plot(ranks, sorted_w, **plot_kwargs)
 

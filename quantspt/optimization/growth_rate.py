@@ -125,36 +125,36 @@ def optimize_growth_rate(
 
     weighted_growth = growth_rates @ pi
     weighted_var = np.diag(cov_matrix) @ pi
-    port_var = cp.quad_form(pi, cov_matrix)
+    port_var = cp.quad_form(pi, cov_matrix)  # type: ignore[attr-defined]
 
     objective = cp.Maximize(weighted_growth + 0.5 * (weighted_var - port_var))
 
-    constraints: list[cp.Constraint] = [
-        cp.sum(pi) == 1,
+    constraints: list[object] = [
+        cp.sum(pi) == 1,  # type: ignore[attr-defined]
         pi >= min_weight,
         pi <= max_weight,
     ]
 
     if max_turnover is not None and prev_weights is not None:
         prev_weights = np.asarray(prev_weights, dtype=np.float64)
-        constraints.append(cp.norm1(pi - prev_weights) <= 2 * max_turnover)
+        constraints.append(cp.norm1(pi - prev_weights) <= 2 * max_turnover)  # type: ignore[attr-defined]
 
     if max_tracking_error is not None and benchmark is not None:
         benchmark = np.asarray(benchmark, dtype=np.float64)
-        tracking = cp.quad_form(pi - benchmark, cov_matrix)
+        tracking = cp.quad_form(pi - benchmark, cov_matrix)  # type: ignore[attr-defined]
         constraints.append(tracking <= max_tracking_error**2)
 
     if extra_constraints:
         for c in extra_constraints:
             constraints.append(c)
 
-    problem = cp.Problem(objective, constraints)
+    problem = cp.Problem(objective, constraints)  # type: ignore[arg-type]
 
     solver_chain = list(dict.fromkeys([solver, "SCS", "ECOS", "OSQP"]))
     last_status = ""
     for s in solver_chain:
         try:
-            problem.solve(solver=s)
+            problem.solve(solver=s)  # type: ignore[no-untyped-call]
             last_status = str(problem.status)
             if problem.status in ("optimal", "optimal_inaccurate"):
                 break
@@ -163,13 +163,12 @@ def optimize_growth_rate(
 
     if problem.status == "infeasible":
         raise InfeasibleError(
-            f"No feasible solution: min_weight={min_weight}, "
-            f"max_weight={max_weight}"
+            f"No feasible solution: min_weight={min_weight}, max_weight={max_weight}"
         )
 
     if problem.status not in ("optimal", "optimal_inaccurate"):
         raise OptimizationError(
-            f"All solvers failed. Last status: {last_status}. " f"Tried: {solver_chain}"
+            f"All solvers failed. Last status: {last_status}. Tried: {solver_chain}"
         )
 
     w_arr = np.asarray(pi.value, dtype=np.float64).flatten()

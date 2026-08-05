@@ -77,7 +77,7 @@ def plot_rank_changes(
     plt = _get_matplotlib()
     require(rank_paths.ndim == 2, "rank_paths must be 2-D (T, n)")
 
-    n_time, total_assets = rank_paths.shape
+    _n_time, total_assets = rank_paths.shape
     if n_assets is None:
         n_assets = total_assets
     n_assets = min(n_assets, total_assets)
