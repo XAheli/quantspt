@@ -138,8 +138,9 @@ def pareto_exponents_empirical(
     require(bool(np.all(mu > 0)), "All weights must be positive")
     ranked = np.sort(mu)[::-1]
     log_ratios = np.log(ranked[:-1] / ranked[1:])
-    with np.errstate(divide="ignore", invalid="ignore"):
-        exponents = np.where(log_ratios > 0, 1.0 / log_ratios, np.inf)
+    nonzero = log_ratios > 0
+    exponents = np.full_like(log_ratios, np.inf)
+    exponents[nonzero] = 1.0 / log_ratios[nonzero]
     return exponents
 
 

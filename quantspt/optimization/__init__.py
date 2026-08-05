@@ -1,24 +1,36 @@
 """Portfolio optimisation for SPT strategies.
 
 Provides growth-rate maximisation (the correct SPT objective), generating
-function parameter tuning, robust optimisation, and constraint construction.
+function parameter tuning, and constraint construction.
 
 Submodules
 ----------
 growth_rate
-    Maximise γ_π using CVXPY (correct SPT formulation).
-generating_function
-    Optimal G selection and parameter tuning.
-robust
-    Parameter uncertainty, Bayesian, and minimax approaches.
+    Maximise portfolio growth rate using CVXPY.
 constraints
-    Turnover, cardinality, sector, and position limit builders.
+    Turnover, position limit, and sector constraint builders.
 transaction_costs
-    Proportional, market impact, and Almgren-Chriss models.
-solver
-    Solver waterfall (SCS → ECOS → OSQP) with tunable parameters.
-multi_period
-    Multi-period dynamic optimisation.
+    Proportional and market impact cost models.
+generating_function
+    Optimal generating function parameter selection.
 """
 
-__all__: list[str] = []
+from .constraints import (
+    ConstraintSet,
+    position_limit_constraints,
+    sector_constraints,
+    turnover_constraint,
+)
+from .growth_rate import optimize_growth_rate
+from .transaction_costs import net_growth_rate, proportional_cost, sqrt_market_impact
+
+__all__ = [
+    "ConstraintSet",
+    "net_growth_rate",
+    "optimize_growth_rate",
+    "position_limit_constraints",
+    "proportional_cost",
+    "sector_constraints",
+    "sqrt_market_impact",
+    "turnover_constraint",
+]

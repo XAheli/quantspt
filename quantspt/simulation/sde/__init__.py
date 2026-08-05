@@ -5,16 +5,28 @@ schemes by swapping the ``Discretization`` strategy.
 
 Submodules
 ----------
-discretization
-    ``Discretization`` protocol and scheme base.
 euler_maruyama
-    O(√dt) strong convergence.
+    O(√dt) strong convergence, with adaptive step-size.
 milstein
-    O(dt) strong convergence.
-exact
-    Exact simulation for GBM, OU, and other tractable processes.
-adaptive
-    Adaptive step-size control for stiff dynamics.
+    O(dt) strong convergence (scalar SDEs), with adaptive step-size.
 """
 
-__all__: list[str] = []
+from .euler_maruyama import (
+    EulerMaruyamaDiscretization,
+    adaptive_euler_maruyama,
+    verify_convergence_order,
+)
+from .milstein import (
+    MilsteinDiscretization,
+    adaptive_milstein,
+    verify_milstein_convergence,
+)
+
+__all__ = [
+    "EulerMaruyamaDiscretization",
+    "MilsteinDiscretization",
+    "adaptive_euler_maruyama",
+    "adaptive_milstein",
+    "verify_convergence_order",
+    "verify_milstein_convergence",
+]

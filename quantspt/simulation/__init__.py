@@ -8,16 +8,18 @@ Submodules
 ----------
 sde
     Pluggable discretisation schemes (Euler-Maruyama, Milstein, exact).
-path_generator
-    Composable MC stack: PathGenerator → PathPricer → Accumulator.
-market_simulator
-    Simulate from any ``StochasticProcess``.
 monte_carlo
     Monte Carlo framework with variance reduction and CI.
-antithetic
-    Antithetic variates for variance reduction.
-importance_sampling
-    Rare event simulation.
+market_simulator
+    Simulate from any ``MarketModel``: prices, weights, ranks.
 """
 
-__all__: list[str] = []
+from .market_simulator import MarketSimulation, simulate_market
+from .monte_carlo import MonteCarloEngine, MonteCarloResult
+
+__all__ = [
+    "MarketSimulation",
+    "MonteCarloEngine",
+    "MonteCarloResult",
+    "simulate_market",
+]
