@@ -529,34 +529,30 @@ class TestNeuralFGPGPUConsistency:
         np.testing.assert_allclose(H_cpu, H_gpu, atol=1e-12)
 
     def test_icnn_forward_cpu_gpu_match(self, rng: np.random.Generator) -> None:
-        """Raw ICNN forward pass in float32 (Category B: training context).
+        """Verify CPU and GPU produce identical ICNN forward pass.
 
-        During training, float32 is used for GPU throughput. The ICNN uses
-        softplus (log(1+exp(x))) which involves transcendental functions.
-        CUDA transcendentals are faithfully rounded to 1-2 ULP but not
-        correctly rounded, yielding ~1.2e-7 relative error per operation.
-        With output magnitudes ~170 and multiple chained softplus calls,
-        absolute error of 5e-5 corresponds to ~3 ULP — within hardware spec.
-        SGD noise (~1e-2) dominates this by 3 orders of magnitude.
+        Uses float64 to isolate code correctness from precision artifacts.
+        Any mismatch > 1e-12 indicates a code bug (different logic paths),
+        not a numerical precision difference.
         """
         torch.manual_seed(42)
         icnn = InputConvexNN(n_inputs=5, hidden_dims=[32, 16], activation="softplus")
+        icnn.double()
 
         alpha = rng.exponential(size=(20, 5))
-        mu = (alpha / alpha.sum(axis=1, keepdims=True)).astype(np.float32)
-        x = torch.tensor(mu)
+        mu = (alpha / alpha.sum(axis=1, keepdims=True)).astype(np.float64)
+        x = torch.tensor(mu, dtype=torch.float64)
 
-        icnn_cpu = icnn.to("cpu")
-        icnn_cpu.eval()
+        icnn.to("cpu")
+        icnn.eval()
         with torch.no_grad():
-            out_cpu = icnn_cpu(x).numpy()
+            out_cpu = icnn(x).numpy()
 
-        icnn_gpu = icnn.to("cuda")
-        icnn_gpu.eval()
+        icnn.to("cuda")
         with torch.no_grad():
-            out_gpu = icnn_gpu(x.to("cuda")).cpu().numpy()
+            out_gpu = icnn(x.to("cuda")).cpu().numpy()
 
-        np.testing.assert_allclose(out_cpu, out_gpu, atol=5e-5)
+        np.testing.assert_allclose(out_cpu, out_gpu, atol=1e-12)
 
     def test_training_loss_converges_on_gpu(
         self, synthetic_market_data: tuple[np.ndarray, np.ndarray]

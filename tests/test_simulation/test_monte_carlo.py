@@ -124,6 +124,7 @@ class TestAntitheticVariates:
         expected = 100.0 * np.exp(0.05)
         assert_allclose(result.data.mean[0], expected, rtol=0.05)
 
+    @pytest.mark.slow
     def test_variance_reduction(self, scalar_gbm: CorrelatedGBM) -> None:
         """Antithetic variates should produce tighter CIs than plain MC."""
         n_paths = 2000

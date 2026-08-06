@@ -271,6 +271,7 @@ class TestTwoStockAtlas:
 # ======================================================================
 
 
+@pytest.mark.slow
 class TestErgodicProperty:
     """Each stock should spend ≈1/n of its time at each rank."""
 

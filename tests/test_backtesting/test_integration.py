@@ -18,6 +18,7 @@ Mathematical References
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from quantspt.backtesting.attribution import compute_attribution
@@ -51,6 +52,7 @@ def _build_5stock_cov() -> np.ndarray:
     return (cov + cov.T) / 2
 
 
+@pytest.mark.integration
 class TestFullPipelineIntegration:
     """End-to-end: simulate → backtest → attribute → verify master formula."""
 
