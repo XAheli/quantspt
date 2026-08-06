@@ -31,7 +31,9 @@ __all__ = [
     "CorrelatedGBM",
     "EulerMaruyamaDiscretization",
     "ExactGBMDiscretization",
+    "JointProcess",
     "MilsteinDiscretization",
+    "StochasticProcessArray",
     "simulate_path",
 ]
 
@@ -336,3 +338,198 @@ def simulate_path(
             path[k + 1] = process.evolve(t_k, x_k, dt, dw)
 
     return times, path
+
+
+# ---------------------------------------------------------------------------
+# StochasticProcessArray and JointProcess
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class StochasticProcessArray:
+    r"""Array of independent stochastic processes with pre/post evolve hooks.
+
+    Manages multiple independent processes as a single composite, allowing
+    batch simulation with optional transformation hooks applied before and
+    after each evolution step.
+
+    Parameters
+    ----------
+    processes : list of CorrelatedGBM (or any process implementing the protocol)
+        The constituent processes.
+    pre_evolve : callable, optional
+        Hook called before each evolve step with signature
+        ``(t, x, dt) -> x_modified``. Can modify state before diffusion.
+    post_evolve : callable, optional
+        Hook called after each evolve step with signature
+        ``(t, x_new, dt) -> x_final``. Can enforce constraints after diffusion.
+    """
+
+    processes: list[CorrelatedGBM]
+    pre_evolve: object | None = None
+    post_evolve: object | None = None
+
+    def __post_init__(self) -> None:
+        require(len(self.processes) > 0, "Must provide at least one process")
+
+    def size(self) -> int:
+        """Total dimensionality across all constituent processes."""
+        return sum(p.size() for p in self.processes)
+
+    def factors(self) -> int:
+        """Total number of Brownian factors."""
+        return sum(p.factors() for p in self.processes)
+
+    def initial_values(self) -> NDArray[np.float64]:
+        """Concatenated initial values."""
+        return np.concatenate([p.initial_values() for p in self.processes])
+
+    def drift(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Block-diagonal drift concatenation."""
+        result_parts = []
+        offset = 0
+        for p in self.processes:
+            n = p.size()
+            x_i = x[offset : offset + n]
+            result_parts.append(p.drift(t, x_i))
+            offset += n
+        return np.concatenate(result_parts)
+
+    def diffusion(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Block-diagonal diffusion matrix."""
+        total_size = self.size()
+        total_factors = self.factors()
+        sigma = np.zeros((total_size, total_factors))
+
+        row_offset = 0
+        col_offset = 0
+        for p in self.processes:
+            n = p.size()
+            f = p.factors()
+            x_i = x[row_offset : row_offset + n]
+            sigma[row_offset : row_offset + n, col_offset : col_offset + f] = (
+                p.diffusion(t, x_i)
+            )
+            row_offset += n
+            col_offset += f
+        return sigma
+
+    def evolve(
+        self,
+        t0: float,
+        x0: NDArray[np.float64],
+        dt: float,
+        dw: NDArray[np.float64],
+    ) -> NDArray[np.float64]:
+        """Evolve all processes one step with optional hooks."""
+        x = x0.copy()
+
+        if self.pre_evolve is not None:
+            assert callable(self.pre_evolve)
+            x = self.pre_evolve(t0, x, dt)
+
+        result_parts = []
+        state_offset = 0
+        factor_offset = 0
+        for p in self.processes:
+            n = p.size()
+            f = p.factors()
+            x_i = x[state_offset : state_offset + n]
+            dw_i = dw[factor_offset : factor_offset + f]
+            result_parts.append(p.evolve(t0, x_i, dt, dw_i))
+            state_offset += n
+            factor_offset += f
+
+        x_new = np.concatenate(result_parts)
+
+        if self.post_evolve is not None:
+            assert callable(self.post_evolve)
+            x_new = self.post_evolve(t0 + dt, x_new, dt)
+
+        return x_new
+
+
+@dataclass
+class JointProcess:
+    r"""Joint process combining correlated processes with shared noise.
+
+    Unlike StochasticProcessArray (which assumes independence),
+    JointProcess allows correlation between constituent processes
+    via a shared correlation structure.
+
+    Parameters
+    ----------
+    drift_fn : callable
+        Joint drift μ(t, x) → ndarray of shape (total_size,).
+    diffusion_fn : callable
+        Joint diffusion σ(t, x) → ndarray of shape (total_size, total_factors).
+    x0 : ndarray
+        Initial state.
+    n_factors : int
+        Number of independent Brownian motions.
+    pre_evolve : callable, optional
+        Hook before each step.
+    post_evolve : callable, optional
+        Hook after each step.
+    """
+
+    drift_fn: object
+    diffusion_fn: object
+    x0: NDArray[np.float64]
+    n_factors: int
+    pre_evolve: object | None = None
+    post_evolve: object | None = None
+
+    def __post_init__(self) -> None:
+        require(self.x0.ndim == 1, f"x0 must be 1-D, got shape {self.x0.shape}")
+        require(self.n_factors > 0, f"n_factors must be positive, got {self.n_factors}")
+
+    def size(self) -> int:
+        """State dimension."""
+        return len(self.x0)
+
+    def factors(self) -> int:
+        """Number of Brownian motions."""
+        return self.n_factors
+
+    def initial_values(self) -> NDArray[np.float64]:
+        """Initial state."""
+        return self.x0.copy()
+
+    def drift(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Evaluate joint drift."""
+        assert callable(self.drift_fn)
+        result: NDArray[np.float64] = np.asarray(self.drift_fn(t, x), dtype=np.float64)
+        return result
+
+    def diffusion(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Evaluate joint diffusion."""
+        assert callable(self.diffusion_fn)
+        result: NDArray[np.float64] = np.asarray(
+            self.diffusion_fn(t, x), dtype=np.float64
+        )
+        return result
+
+    def evolve(
+        self,
+        t0: float,
+        x0: NDArray[np.float64],
+        dt: float,
+        dw: NDArray[np.float64],
+    ) -> NDArray[np.float64]:
+        """Euler-Maruyama step with optional hooks."""
+        x = x0.copy()
+
+        if self.pre_evolve is not None:
+            assert callable(self.pre_evolve)
+            x = self.pre_evolve(t0, x, dt)
+
+        mu = self.drift(t0, x)
+        sigma = self.diffusion(t0, x)
+        x_new: NDArray[np.float64] = x + mu * dt + sigma @ dw
+
+        if self.post_evolve is not None:
+            assert callable(self.post_evolve)
+            x_new = self.post_evolve(t0 + dt, x_new, dt)
+
+        return x_new
