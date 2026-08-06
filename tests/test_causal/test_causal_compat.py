@@ -21,8 +21,8 @@ from numpy.testing import assert_allclose
 
 pytest.importorskip("pgmpy")
 
-from quantspt.causal.covariance import CausalCovarianceEstimator  # noqa: E402
-from quantspt.causal.structure import CausalStructureLearner  # noqa: E402
+from quantspt.causal.covariance import CausalCovarianceEstimator
+from quantspt.causal.structure import CausalStructureLearner
 
 try:
     import torch

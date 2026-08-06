@@ -11,12 +11,12 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from quantspt.core.generating_functions import (  # noqa: E402
+from quantspt.core.generating_functions import (
     GeneratingFunction,
     drift_process,
 )
-from quantspt.ml._protocols import GeneratingFunctionModel  # noqa: E402
-from quantspt.ml.neural_fgp import (  # noqa: E402
+from quantspt.ml._protocols import GeneratingFunctionModel
+from quantspt.ml.neural_fgp import (
     InputConvexNN,
     NeuralFGP,
     NeuralFGPConfig,

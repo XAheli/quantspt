@@ -81,7 +81,7 @@ class NumpyBackend:
 
         Σ_shrunk = (1-α)·S + α·(tr(S)/n)·I
         """
-        n_obs, n_assets = returns.shape
+        _n_obs, n_assets = returns.shape
         sample_cov = np.cov(returns, rowvar=False, ddof=1)
         target = np.eye(n_assets) * np.trace(sample_cov) / n_assets
         result: NDArray[np.float64] = (

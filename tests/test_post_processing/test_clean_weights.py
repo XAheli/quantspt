@@ -232,7 +232,7 @@ class TestEnforceBounds:
     def test_upper_above_one_raises(self) -> None:
         """Upper bound > 1 raises."""
         w = np.array([0.5, 0.5])
-        with pytest.raises(SPTInvariantError, match="<= 1.0"):
+        with pytest.raises(SPTInvariantError, match=r"<= 1\.0"):
             enforce_bounds(w, upper=1.5)
 
     def test_all_clipped_to_zero_raises(self) -> None:

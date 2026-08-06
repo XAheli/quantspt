@@ -18,12 +18,12 @@ import numpy as np
 import pytest
 
 torch = pytest.importorskip("torch")
-import torch.nn as nn  # noqa: E402
-from numpy.testing import assert_allclose  # noqa: E402
+import torch.nn as nn
+from numpy.testing import assert_allclose
 
-from quantspt.core.generating_functions import GeneratingFunction  # noqa: E402
-from quantspt.core.master_formula import master_formula_decomposition  # noqa: E402
-from quantspt.ml.losses import (  # noqa: E402
+from quantspt.core.generating_functions import GeneratingFunction
+from quantspt.core.master_formula import master_formula_decomposition
+from quantspt.ml.losses import (
     DriftIntegralLoss,
     default_loss,
     drift_integral_loss,
@@ -32,8 +32,8 @@ from quantspt.ml.losses import (  # noqa: E402
     turnover_penalty,
     weight_regularization,
 )
-from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig  # noqa: E402
-from quantspt.ml.wrappers import wrap_torch_model  # noqa: E402
+from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig
+from quantspt.ml.wrappers import wrap_torch_model
 
 
 @pytest.fixture
@@ -200,7 +200,7 @@ class TestNeuralFGPConcavity:
             G_y = model.generating_function(y)
             assert G_mid >= lam * G_x + (1 - lam) * G_y - 1e-4, (
                 f"Concavity violated: G(mid)={G_mid:.6f} < "
-                f"λG(x)+(1-λ)G(y)={lam*G_x+(1-lam)*G_y:.6f}"
+                f"λG(x)+(1-λ)G(y)={lam * G_x + (1 - lam) * G_y:.6f}"
             )
 
     def test_hessian_negative_semidefinite(

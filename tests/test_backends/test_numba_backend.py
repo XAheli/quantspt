@@ -13,8 +13,8 @@ from numpy.testing import assert_allclose
 
 numba = pytest.importorskip("numba")
 
-from quantspt._backends.numba_backend import NumbaBackend  # noqa: E402
-from quantspt._backends.numpy_backend import NumpyBackend  # noqa: E402
+from quantspt._backends.numba_backend import NumbaBackend
+from quantspt._backends.numpy_backend import NumpyBackend
 
 
 @pytest.fixture()

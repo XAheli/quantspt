@@ -114,7 +114,7 @@ class TestEnforceBounds:
             enforce_bounds(np.array([0.5, 0.5]), lower=0.6, upper=0.4)
 
     def test_upper_exceeds_one_raises(self) -> None:
-        with pytest.raises(SPTInvariantError, match="<= 1.0"):
+        with pytest.raises(SPTInvariantError, match=r"<= 1\.0"):
             enforce_bounds(np.array([0.5, 0.5]), upper=1.5)
 
     def test_negative_lower_raises(self) -> None:

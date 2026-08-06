@@ -172,7 +172,7 @@ class CausalCovarianceEstimator:
         require(self._fitted, "Must call .fit() first")
         assert self._model is not None
 
-        mean, cov = self._model.to_joint_gaussian()
+        _mean, cov = self._model.to_joint_gaussian()
         return self._reorder_cov(cov)
 
     def interventional_covariance(
@@ -205,7 +205,7 @@ class CausalCovarianceEstimator:
         do_model = self._model.do(do_vars)
         do_model.fit(self._simulate_under_intervention(interventions))
 
-        mean, cov = do_model.to_joint_gaussian()
+        _mean, cov = do_model.to_joint_gaussian()
         cov_reordered = self._reorder_cov(cov, model=do_model)
 
         node_idx = {n: i for i, n in enumerate(self._variable_names)}

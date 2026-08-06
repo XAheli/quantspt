@@ -290,7 +290,7 @@ def plot_arbitrage_horizon_cone(
     """
     backend = _validate_backend(backend)
     require(horizon_data.ndim == 3, "horizon_data must be 3-D (horizons, points, dims)")
-    n_horizons, n_points, dims = horizon_data.shape
+    n_horizons, _n_points, dims = horizon_data.shape
     require(dims in (2, 3), f"last dimension must be 2 or 3, got {dims}")
 
     plot_title = title or "Arbitrage Horizon Cone"
