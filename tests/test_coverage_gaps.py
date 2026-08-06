@@ -244,11 +244,9 @@ class TestNewSchemas:
     def test_causal_graph_invalid_shape(self):
         """Cover CausalGraph.__post_init__ fail path (line 215-216)."""
         from quantspt.data.schemas import CausalGraph
+        from quantspt.errors import SPTInvariantError
 
-        with pytest.raises(
-            (ValueError, RuntimeError),
-            match=r"shape|mismatch|Precondition",
-        ):
+        with pytest.raises(SPTInvariantError):
             CausalGraph(
                 adjacency_matrix=np.eye(2),
                 variable_names=["A", "B", "C"],
@@ -266,11 +264,9 @@ class TestNewSchemas:
     def test_regime_labels_invalid(self):
         """Cover RegimeLabels.__post_init__ fail path (line 245-246)."""
         from quantspt.data.schemas import RegimeLabels
+        from quantspt.errors import SPTInvariantError
 
-        with pytest.raises(
-            (ValueError, RuntimeError),
-            match=r"unique|regimes|Precondition",
-        ):
+        with pytest.raises(SPTInvariantError):
             RegimeLabels(
                 labels=np.array([0, 1, 2], dtype=np.int64),
                 n_regimes=2,
@@ -285,11 +281,9 @@ class TestNewSchemas:
     def test_factor_loadings_invalid(self):
         """Cover FactorLoadings.__post_init__ fail path (line 271)."""
         from quantspt.data.schemas import FactorLoadings
+        from quantspt.errors import SPTInvariantError
 
-        with pytest.raises(
-            (ValueError, RuntimeError),
-            match=r"2-D|shape|Precondition",
-        ):
+        with pytest.raises(SPTInvariantError):
             FactorLoadings(loadings=np.array([1.0, 2.0]))
 
 
