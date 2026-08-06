@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
-import torch.nn as nn
 
-from quantspt.core.generating_functions import GeneratingFunction
-from quantspt.ml._protocols import GeneratingFunctionModel
-from quantspt.ml.wrappers import (
+torch = pytest.importorskip("torch")
+import torch.nn as nn  # noqa: E402
+
+from quantspt.core.generating_functions import GeneratingFunction  # noqa: E402
+from quantspt.ml._protocols import GeneratingFunctionModel  # noqa: E402
+from quantspt.ml.wrappers import (  # noqa: E402
     wrap_callable,
     wrap_sklearn_estimator,
     wrap_torch_model,

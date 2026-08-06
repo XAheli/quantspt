@@ -21,6 +21,14 @@ from quantspt.core.master_formula import master_formula_decomposition
 from quantspt.estimation.covariance.sample import sample_covariance
 from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig
 
+_HAS_TORCH = False
+try:
+    import torch
+
+    _HAS_TORCH = True
+except ImportError:
+    pass
+
 
 @pytest.fixture
 def rng() -> np.random.Generator:
@@ -60,13 +68,16 @@ def synthetic_market(rng):
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed")
 class TestCausalToNeuralFGP:
     """End-to-end pipeline through causal structure to Neural FGP."""
 
     def test_causal_structure_to_neural_fgp(self, rng) -> None:
         """Data → causal DAG → covariance → neural FGP → weights."""
+        pytest.importorskip("pgmpy")
         from quantspt.causal.covariance import CausalCovarianceEstimator
         from quantspt.causal.structure import CausalStructureLearner
+        from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig
 
         n_samples = 1000
         X = rng.normal(size=n_samples)
@@ -189,6 +200,7 @@ class TestSimulateToBacktest:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed")
 class TestCustomModelPipeline:
     """User nn.Module → wrap_torch_model → integrate with master formula."""
 
@@ -275,6 +287,7 @@ class TestCovarianceToGrowthRate:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(not _HAS_TORCH, reason="torch not installed")
 class TestNeuralFGPBacktest:
     """NeuralFGP trained model feeds into backtest engine."""
 

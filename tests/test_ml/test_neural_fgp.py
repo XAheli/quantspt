@@ -8,14 +8,19 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
 
-from quantspt.core.generating_functions import (
+torch = pytest.importorskip("torch")
+
+from quantspt.core.generating_functions import (  # noqa: E402
     GeneratingFunction,
     drift_process,
 )
-from quantspt.ml._protocols import GeneratingFunctionModel
-from quantspt.ml.neural_fgp import InputConvexNN, NeuralFGP, NeuralFGPConfig
+from quantspt.ml._protocols import GeneratingFunctionModel  # noqa: E402
+from quantspt.ml.neural_fgp import (  # noqa: E402
+    InputConvexNN,
+    NeuralFGP,
+    NeuralFGPConfig,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures

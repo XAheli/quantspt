@@ -10,8 +10,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantspt.causal.structure import CausalStructureLearner
-from quantspt.errors import SPTInvariantError
+pytest.importorskip("pgmpy")
+
+from quantspt.causal.structure import CausalStructureLearner  # noqa: E402
+from quantspt.errors import SPTInvariantError  # noqa: E402
 
 
 @pytest.fixture()

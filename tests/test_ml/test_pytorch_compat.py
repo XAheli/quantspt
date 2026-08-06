@@ -16,13 +16,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
-import torch.nn as nn
-from numpy.testing import assert_allclose
 
-from quantspt.core.generating_functions import GeneratingFunction
-from quantspt.core.master_formula import master_formula_decomposition
-from quantspt.ml.losses import (
+torch = pytest.importorskip("torch")
+import torch.nn as nn  # noqa: E402
+from numpy.testing import assert_allclose  # noqa: E402
+
+from quantspt.core.generating_functions import GeneratingFunction  # noqa: E402
+from quantspt.core.master_formula import master_formula_decomposition  # noqa: E402
+from quantspt.ml.losses import (  # noqa: E402
     DriftIntegralLoss,
     default_loss,
     drift_integral_loss,
@@ -31,8 +32,8 @@ from quantspt.ml.losses import (
     turnover_penalty,
     weight_regularization,
 )
-from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig
-from quantspt.ml.wrappers import wrap_torch_model
+from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig  # noqa: E402
+from quantspt.ml.wrappers import wrap_torch_model  # noqa: E402
 
 
 @pytest.fixture
