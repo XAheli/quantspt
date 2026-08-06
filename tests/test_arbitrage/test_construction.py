@@ -360,9 +360,9 @@ class TestDiversityArbitrageIntegration:
             V_mu *= float(np.dot(mu_t, returns))
 
         log_excess = np.log(V_pi / V_mu)
-        assert (
-            log_excess > 0
-        ), f"Portfolio underperformed: log(V^π/V^μ) = {log_excess:.6f}"
+        assert log_excess > 0, (
+            f"Portfolio underperformed: log(V^π/V^μ) = {log_excess:.6f}"
+        )
 
     def test_constructed_portfolio_matches_direct(self) -> None:
         """construct_arbitrage_portfolio('diversity') = diversity_arbitrage_portfolio."""

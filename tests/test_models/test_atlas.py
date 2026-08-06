@@ -376,9 +376,9 @@ class TestSimulationCrossChecks:
         # EW should outperform market (positive excess growth)
         assert sim_excess > 0, f"Expected positive excess growth, got {sim_excess}"
         # Should be within a factor of 3 of the analytical value
-        assert (
-            sim_excess < 3.0 * analytical_gamma_star
-        ), f"Simulated {sim_excess} too far from analytical {analytical_gamma_star}"
+        assert sim_excess < 3.0 * analytical_gamma_star, (
+            f"Simulated {sim_excess} too far from analytical {analytical_gamma_star}"
+        )
 
 
 # ======================================================================

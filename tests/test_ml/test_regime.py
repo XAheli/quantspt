@@ -55,9 +55,9 @@ class TestHMMRegimeDetector:
 
         first_half_label = labels[0]
         second_half_label = labels[399]
-        assert (
-            first_half_label != second_half_label
-        ), "HMM should detect different regimes for clearly separated data"
+        assert first_half_label != second_half_label, (
+            "HMM should detect different regimes for clearly separated data"
+        )
 
     def test_recovers_correct_regime_labels(self, two_regime_data: np.ndarray) -> None:
         """Most labels in first half should match, same for second half."""
@@ -71,12 +71,12 @@ class TestHMMRegimeDetector:
 
         first_half_accuracy = (labels[:200] == first_half_mode).mean()
         second_half_accuracy = (labels[200:] == second_half_mode).mean()
-        assert (
-            first_half_accuracy > 0.85
-        ), f"First half accuracy: {first_half_accuracy:.2f}"
-        assert (
-            second_half_accuracy > 0.85
-        ), f"Second half accuracy: {second_half_accuracy:.2f}"
+        assert first_half_accuracy > 0.85, (
+            f"First half accuracy: {first_half_accuracy:.2f}"
+        )
+        assert second_half_accuracy > 0.85, (
+            f"Second half accuracy: {second_half_accuracy:.2f}"
+        )
 
     def test_transition_matrix_is_stochastic(self, two_regime_data: np.ndarray) -> None:
         """Transition matrix rows must sum to 1."""
@@ -146,9 +146,9 @@ class TestChangepointDetector:
 
         assert len(detector.changepoints) >= 1
         closest = min(detector.changepoints, key=lambda cp: abs(cp - 150))
-        assert (
-            abs(closest - 150) < 30
-        ), f"Detected changepoint at {closest}, expected near 150"
+        assert abs(closest - 150) < 30, (
+            f"Detected changepoint at {closest}, expected near 150"
+        )
 
     def test_predict_labels_segmented(self, changepoint_signal: np.ndarray) -> None:
         """predict() returns segment labels."""
