@@ -211,6 +211,7 @@ class TestFromPgmpy:
         self,
         factor_asset_data: tuple[pd.DataFrame, list[tuple[str, str]]],
     ) -> None:
+        pytest.importorskip("pgmpy")
         from pgmpy.models import LinearGaussianBayesianNetwork
 
         df, edges = factor_asset_data
@@ -226,6 +227,7 @@ class TestFromPgmpy:
         self,
         factor_asset_data: tuple[pd.DataFrame, list[tuple[str, str]]],
     ) -> None:
+        pytest.importorskip("pgmpy")
         from pgmpy.models import LinearGaussianBayesianNetwork
 
         df, edges = factor_asset_data
@@ -238,6 +240,7 @@ class TestFromPgmpy:
         assert fl.shape == (4, 1)
 
     def test_from_pgmpy_chain(self, chain_data: pd.DataFrame) -> None:
+        pytest.importorskip("pgmpy")
         from pgmpy.models import LinearGaussianBayesianNetwork
 
         model = LinearGaussianBayesianNetwork([("X", "Y"), ("Y", "Z")])

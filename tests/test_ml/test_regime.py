@@ -9,7 +9,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from quantspt.ml.regime import ChangepointDetector, HMMRegimeDetector
+pytest.importorskip("hmmlearn")
+pytest.importorskip("ruptures")
+
+from quantspt.ml.regime import ChangepointDetector, HMMRegimeDetector  # noqa: E402
 
 
 @pytest.fixture

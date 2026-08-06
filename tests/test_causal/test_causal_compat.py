@@ -19,8 +19,10 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose
 
-from quantspt.causal.covariance import CausalCovarianceEstimator
-from quantspt.causal.structure import CausalStructureLearner
+pytest.importorskip("pgmpy")
+
+from quantspt.causal.covariance import CausalCovarianceEstimator  # noqa: E402
+from quantspt.causal.structure import CausalStructureLearner  # noqa: E402
 
 try:
     import torch

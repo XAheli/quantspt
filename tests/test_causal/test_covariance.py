@@ -249,6 +249,7 @@ class TestFromPgmpy:
         self,
         known_sem_data: tuple[pd.DataFrame, dict[str, float]],
     ) -> None:
+        pytest.importorskip("pgmpy")
         from pgmpy.models import LinearGaussianBayesianNetwork
 
         df, _ = known_sem_data
@@ -264,6 +265,7 @@ class TestFromPgmpy:
         self,
         known_sem_data: tuple[pd.DataFrame, dict[str, float]],
     ) -> None:
+        pytest.importorskip("pgmpy")
         from pgmpy.models import LinearGaussianBayesianNetwork
 
         df, _ = known_sem_data
