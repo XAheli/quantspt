@@ -141,23 +141,27 @@ class TorchModelWrapper:
         return self._model(x)
 
     def generating_function(self, mu: NDArray[np.float64]) -> float:
-        """Evaluate G_θ(μ) in float64 precision."""
+        """Evaluate G_θ(μ) in float64 precision.
+
+        Category C boundary: model trains in float32 for GPU throughput,
+        but evaluation promotes to float64 because downstream consumers
+        (relative_covariance, drift_process) suffer catastrophic cancellation.
+        """
         import torch
 
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._device)
         self._model.double()
-        try:
-            with torch.no_grad():
-                G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
-        finally:
-            self._model.float()
+        with torch.no_grad():
+            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+        self._model.float()
         return float(G_val.item())
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         """Compute ∇ log G_θ(μ) via PyTorch autograd in float64.
 
-        Temporarily casts model to float64 for precision, matching
-        the hessian method's approach.
+        Category C boundary: gradient feeds into Fernholz weight formula
+        where small differences between portfolio and market weights
+        amplify precision loss.
         """
         import torch
 
@@ -166,32 +170,33 @@ class TorchModelWrapper:
         ).requires_grad_(True)
 
         self._model.double()
-        try:
-            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
-            G_val = torch.clamp(G_val, min=1e-8)
-            log_G = torch.log(G_val)
-            (grad,) = torch.autograd.grad(log_G, mu_t)
-        finally:
-            self._model.float()
+        G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+        G_val = torch.clamp(G_val, min=1e-8)
+        log_G = torch.log(G_val)
+        (grad,) = torch.autograd.grad(log_G, mu_t)
+        self._model.float()
 
-        return grad.detach().cpu().numpy().astype(np.float64)
+        return grad.detach().cpu().numpy()
 
     def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
-        """Compute D²G_θ(μ) via torch.autograd.functional.hessian."""
+        """Compute D²G_θ(μ) via torch.autograd.functional.hessian.
+
+        Category A: Hessian feeds into drift process where second-order
+        cancellation amplifies precision loss. Must be float64.
+        """
         import torch
 
+        self._model.double()
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._device)
 
         def G_func(x: torch.Tensor) -> torch.Tensor:
-            x32 = x.float()
             if self._negate:
-                return (
-                    -self._model(x32.unsqueeze(0)).squeeze() + self._offset
-                ).double()
-            return self._model(x32.unsqueeze(0)).squeeze().double()
+                return -self._model(x.unsqueeze(0)).squeeze() + self._offset
+            return self._model(x.unsqueeze(0)).squeeze()
 
         H = torch.autograd.functional.hessian(G_func, mu_t)
-        H_np = H.detach().cpu().numpy().astype(np.float64)  # type: ignore[union-attr]
+        self._model.float()
+        H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
         return (H_np + H_np.T) / 2.0
 
     def weights(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:

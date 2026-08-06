@@ -68,13 +68,24 @@ class CausalCovarianceEstimator:
         Directed edges ``(parent, child)`` defining the causal DAG.
         If None, must be supplied at ``.fit()`` time via the *edges*
         keyword argument.
+    backend : ``"numpy"`` | ``"torch"``
+        Computation backend for pgmpy.  ``"torch"`` enables GPU
+        acceleration for factor operations, CPDs, and sampling.
+    device : str or None
+        Device for the torch backend (``"cpu"`` or ``"cuda"``).
+        Only used when ``backend="torch"``.
     """
 
     def __init__(
         self,
         edges: list[tuple[str, str]] | None = None,
+        *,
+        backend: str = "numpy",
+        device: str | None = None,
     ) -> None:
         self._edges = edges
+        self._backend = backend
+        self._device = device
         self._model: LinearGaussianBayesianNetwork | None = None
         self._variable_names: list[str] = []
         self._fitted = False
@@ -114,6 +125,7 @@ class CausalCovarianceEstimator:
         )
         assert resolved_edges is not None
 
+        self._configure_backend()
         df = self._to_dataframe(data, variable_names)
         self._variable_names = sorted(df.columns)
 
@@ -246,6 +258,16 @@ class CausalCovarianceEstimator:
         require(self._fitted, "Must call .fit() first")
         assert self._model is not None
         return self._model
+
+    def _configure_backend(self) -> None:
+        """Set pgmpy's computation backend before running operations."""
+        from pgmpy import config as pgmpy_config
+
+        if self._backend == "torch":
+            device = self._device or "cpu"
+            pgmpy_config.set_backend("torch", device=device)
+        else:
+            pgmpy_config.set_backend("numpy")
 
     def _extract_loadings(
         self,

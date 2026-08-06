@@ -505,11 +505,14 @@ class TestCustomModelWeights:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.gpu
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 class TestGPUConsistency:
-    """GPU results match CPU results."""
+    """GPU results match CPU results for wrap_torch_model and NeuralFGP."""
 
     def test_same_generating_function_value(self, simplex_point: np.ndarray) -> None:
+        """Category C boundary: evaluation promotes to float64, exact match."""
+
         class QuadConvex(nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return (x**2).sum(dim=-1)
@@ -522,9 +525,11 @@ class TestGPUConsistency:
         )
         val_cpu = wrapper_cpu.generating_function(simplex_point)
         val_gpu = wrapper_gpu.generating_function(simplex_point)
-        assert_allclose(val_cpu, val_gpu, atol=1e-5)
+        assert_allclose(val_cpu, val_gpu, atol=1e-12)
 
     def test_same_gradient(self, simplex_point: np.ndarray) -> None:
+        """Category A: gradient feeds into Fernholz weights, needs float64."""
+
         class QuadConvex(nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return (x**2).sum(dim=-1)
@@ -537,7 +542,66 @@ class TestGPUConsistency:
         )
         grad_cpu = wrapper_cpu.log_gradient(simplex_point)
         grad_gpu = wrapper_gpu.log_gradient(simplex_point)
-        assert_allclose(grad_cpu, grad_gpu, atol=1e-5)
+        assert_allclose(grad_cpu, grad_gpu, atol=1e-12)
+
+    def test_same_hessian(self, simplex_point: np.ndarray) -> None:
+        """Category A: Hessian feeds into drift process, needs float64."""
+
+        class QuadConvex(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper_cpu = wrap_torch_model(
+            QuadConvex(), n_assets=5, positivity_offset=2.0, device="cpu"
+        )
+        wrapper_gpu = wrap_torch_model(
+            QuadConvex(), n_assets=5, positivity_offset=2.0, device="cuda"
+        )
+        H_cpu = wrapper_cpu.hessian(simplex_point)
+        H_gpu = wrapper_gpu.hessian(simplex_point)
+        assert_allclose(H_cpu, H_gpu, atol=1e-12)
+
+    def test_same_weights(self, simplex_points: np.ndarray) -> None:
+        """Category A: weights involve cancellation in Fernholz formula."""
+
+        class QuadConvex(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper_cpu = wrap_torch_model(
+            QuadConvex(), n_assets=5, positivity_offset=2.0, device="cpu"
+        )
+        wrapper_gpu = wrap_torch_model(
+            QuadConvex(), n_assets=5, positivity_offset=2.0, device="cuda"
+        )
+        for mu in simplex_points[:10]:
+            w_cpu = wrapper_cpu.weights(mu)
+            w_gpu = wrapper_gpu.weights(mu)
+            assert_allclose(w_cpu, w_gpu, atol=1e-12)
+
+    def test_neural_fgp_gpu_training(self, synthetic_market_data) -> None:
+        """NeuralFGP trains successfully on GPU and produces valid results."""
+        mw, ret = synthetic_market_data
+        config = NeuralFGPConfig(
+            hidden_dims=[32, 16],
+            epochs=30,
+            train_window=50,
+            eval_window=10,
+            learning_rate=5e-3,
+            seed=42,
+            device="cuda",
+        )
+        model = NeuralFGP(n_assets=5, config=config)
+        model.fit(mw, returns=ret)
+        losses = model.training_history["loss"]
+        assert losses[-1] <= losses[0]
+
+        mu = mw[0]
+        val = model.generating_function(mu)
+        assert val > 0
+        w = model.weights(mu)
+        assert abs(w.sum() - 1.0) < 1e-5
+        assert np.all(w >= -1e-6)
 
 
 # ---------------------------------------------------------------------------
