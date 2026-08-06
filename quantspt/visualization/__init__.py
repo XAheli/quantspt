@@ -27,6 +27,7 @@ from .capital_distribution import (
     plot_capital_distribution,
     plot_capital_distribution_evolution,
 )
+from .export import generate_report, to_html, to_latex, to_pdf
 from .interactive import (
     plot_arbitrage_horizon_cone,
     plot_generating_function_surface,
@@ -42,6 +43,7 @@ from .portfolio_weights import plot_weight_comparison, plot_weight_evolution
 from .rank_dynamics import plot_rank_changes, plot_rank_transition_heatmap
 
 __all__ = [
+    "generate_report",
     "plot_arbitrage_horizon_cone",
     "plot_capital_distribution",
     "plot_capital_distribution_evolution",
@@ -57,4 +59,7 @@ __all__ = [
     "plot_simplex_trajectory",
     "plot_weight_comparison",
     "plot_weight_evolution",
+    "to_html",
+    "to_latex",
+    "to_pdf",
 ]
