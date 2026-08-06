@@ -101,6 +101,8 @@ def __getattr__(name: str) -> object:
         "turnover_penalty",
         "sharpe_of_relative_loss",
         "default_loss",
+        "drift_integral_loss",
+        "DriftIntegralLoss",
     ):
         from . import losses
 

@@ -201,6 +201,126 @@ class SharpeRelativeLoss(_BaseLoss):
         return -mean_r / std_r
 
 
+class DriftIntegralLoss(_BaseLoss):
+    r"""Maximize the drift integral ∫g(t)dt from the master formula.
+
+    The drift process at each timestep equals the excess growth rate
+    differential between the predicted portfolio and the market:
+
+    .. math::
+        g(t) = \gamma^*(\pi(t), a(t)) - \gamma^*(\mu(t), a(t))
+
+    where :math:`\gamma^*(\pi, a)=\tfrac{1}{2}[\sum_i \pi_i a_{ii}
+    - \pi^\top a\,\pi]` is the excess growth rate (the diversification
+    return). Positive drift means the portfolio captures more
+    diversification benefit than the market itself.
+
+    The loss returns the *negative* drift integral (for minimization).
+    It can be used standalone via :func:`drift_integral_loss` or
+    composed with other losses via arithmetic.
+
+    Parameters
+    ----------
+    dt : float
+        Time step between observations (default 1/252 for daily data).
+    """
+
+    def __init__(self, dt: float = 1.0 / 252.0) -> None:
+        self.dt = dt
+
+    def __call__(
+        self,
+        weights_sequence: Any,
+        returns_sequence: Any,
+        *,
+        market_weights: Any = None,
+        covariance_matrices: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        import torch
+
+        if market_weights is None or covariance_matrices is None:
+            raise ValueError(
+                "DriftIntegralLoss requires 'market_weights' and "
+                "'covariance_matrices' keyword arguments"
+            )
+        if not isinstance(market_weights, torch.Tensor):
+            market_weights = torch.tensor(market_weights, dtype=weights_sequence.dtype)
+        if not isinstance(covariance_matrices, torch.Tensor):
+            covariance_matrices = torch.tensor(
+                covariance_matrices, dtype=weights_sequence.dtype
+            )
+        return drift_integral_loss(
+            weights_sequence, market_weights, covariance_matrices, self.dt
+        )
+
+
+def drift_integral_loss(
+    weights_pred: Any,
+    market_weights: Any,
+    covariance_matrices: Any,
+    dt: float,
+) -> Any:
+    r"""Loss that maximizes the drift integral ∫g(t)dt from the master formula.
+
+    This directly optimizes the theoretical outperformance guarantee.
+    The drift process at each timestep is the excess growth rate differential:
+
+    .. math::
+        g(t) = \gamma^*(\pi(t)) - \gamma^*(\mu(t))
+
+    where :math:`\gamma^*(\pi,a)=\frac{1}{2}\bigl[\sum_i \pi_i\,a_{ii}
+    - \pi^\top a\,\pi\bigr]`.
+
+    Parameters
+    ----------
+    weights_pred : Tensor of shape (T, n)
+        Predicted portfolio weights at each time step.
+    market_weights : Tensor of shape (T, n)
+        Market capitalization weights μ(t).
+    covariance_matrices : Tensor of shape (T, n, n)
+        Asset covariance matrices at each time step.
+    dt : float
+        Time step between observations.
+
+    Returns
+    -------
+    Tensor (scalar)
+        Negative drift integral (minimize to maximize outperformance).
+    """
+    import torch
+
+    if not isinstance(weights_pred, torch.Tensor):
+        weights_pred = torch.tensor(weights_pred, dtype=torch.float64)
+    if not isinstance(market_weights, torch.Tensor):
+        market_weights = torch.tensor(market_weights, dtype=torch.float64)
+    if not isinstance(covariance_matrices, torch.Tensor):
+        covariance_matrices = torch.tensor(covariance_matrices, dtype=torch.float64)
+
+    dtype = torch.promote_types(
+        torch.promote_types(weights_pred.dtype, market_weights.dtype),
+        covariance_matrices.dtype,
+    )
+    weights_pred = weights_pred.to(dtype)
+    market_weights = market_weights.to(dtype)
+    covariance_matrices = covariance_matrices.to(dtype)
+
+    T = weights_pred.shape[0]
+
+    def _excess_growth_rate(pi: torch.Tensor, a: torch.Tensor) -> torch.Tensor:
+        diag_a = a.diagonal(dim1=-2, dim2=-1)
+        weighted_var = (pi * diag_a).sum(dim=-1)
+        port_var = torch.einsum("ti,tij,tj->t", pi, a, pi)
+        return 0.5 * (weighted_var - port_var)
+
+    gamma_pred = _excess_growth_rate(weights_pred, covariance_matrices)
+    gamma_market = _excess_growth_rate(market_weights, covariance_matrices)
+
+    drift = gamma_pred - gamma_market
+    drift_integral = (drift * dt).sum()
+    return -drift_integral / max(T, 1)
+
+
 relative_return_loss = RelativeReturnLoss()
 """Singleton: maximize log-relative return (arXiv:2506.19715, Eq. 3.3)."""
 
@@ -223,12 +343,14 @@ def default_loss(weight_decay: float = 1e-4) -> _CompositeLoss:
 
 
 __all__ = [
+    "DriftIntegralLoss",
     "FGPLoss",
     "RelativeReturnLoss",
     "SharpeRelativeLoss",
     "TurnoverPenalty",
     "WeightRegularization",
     "default_loss",
+    "drift_integral_loss",
     "relative_return_loss",
     "sharpe_of_relative_loss",
     "turnover_penalty",
