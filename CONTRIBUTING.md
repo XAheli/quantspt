@@ -63,6 +63,11 @@ docs(tutorials): add Atlas model calibration notebook
 test(arbitrage): add property test for mirror portfolio identity
 ```
 
+## CI Notes
+
+- CodeQL Analysis is managed via GitHub's default security settings, not a workflow file.
+  To disable or configure, go to **Settings → Code security and analysis** in the GitHub UI.
+
 ## Areas for Contribution
 
 | Area | Skills Needed | Level |
