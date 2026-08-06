@@ -118,9 +118,9 @@ class TestFullPipelineIntegration:
 
         assert np.isfinite(attribution.boundary)
         assert np.isfinite(attribution.drift_integral)
-        assert (
-            attribution.drift_integral > 0
-        ), "Diversity drift should be positive for p=0.5"
+        assert attribution.drift_integral > 0, (
+            "Diversity drift should be positive for p=0.5"
+        )
         assert_allclose(
             attribution.actual_log_relative,
             attribution.predicted_log_relative,

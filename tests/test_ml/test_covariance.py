@@ -54,9 +54,9 @@ class TestFactorModelEstimator:
         sigma = estimator.estimate()
 
         eigenvalues = np.linalg.eigvalsh(sigma)
-        assert (
-            eigenvalues[0] >= -1e-10
-        ), f"Not PSD: min eigenvalue = {eigenvalues[0]:.6e}"
+        assert eigenvalues[0] >= -1e-10, (
+            f"Not PSD: min eigenvalue = {eigenvalues[0]:.6e}"
+        )
 
     def test_output_is_symmetric(self, factor_returns: np.ndarray) -> None:
         """Factor model output must be symmetric."""
@@ -128,9 +128,9 @@ class TestRMTDenoiser:
         sigma = denoiser.estimate()
 
         eigenvalues = np.linalg.eigvalsh(sigma)
-        assert (
-            eigenvalues[0] >= -1e-10
-        ), f"Not PSD: min eigenvalue = {eigenvalues[0]:.6e}"
+        assert eigenvalues[0] >= -1e-10, (
+            f"Not PSD: min eigenvalue = {eigenvalues[0]:.6e}"
+        )
 
     def test_denoised_is_symmetric(self, noisy_returns: np.ndarray) -> None:
         """Denoised matrix must be symmetric."""
@@ -148,9 +148,9 @@ class TestRMTDenoiser:
         eigenvalues = np.linalg.eigvalsh(sigma)
         noise_eigs = eigenvalues[eigenvalues < denoiser.mp_edge]
         if len(noise_eigs) > 1:
-            assert (
-                np.std(noise_eigs) < 1e-10
-            ), "Noise eigenvalues should be constant after denoising"
+            assert np.std(noise_eigs) < 1e-10, (
+                "Noise eigenvalues should be constant after denoising"
+            )
 
     def test_mp_edge_positive(self, noisy_returns: np.ndarray) -> None:
         """Marchenko-Pastur edge must be positive."""

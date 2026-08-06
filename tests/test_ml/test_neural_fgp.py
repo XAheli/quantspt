@@ -174,9 +174,9 @@ class TestNeuralFGPTraining:
 
         losses = model.training_history["loss"]
         assert len(losses) > 5
-        assert (
-            losses[-1] <= losses[0]
-        ), f"Expected loss to not increase: {losses[0]:.6f} → {losses[-1]:.6f}"
+        assert losses[-1] <= losses[0], (
+            f"Expected loss to not increase: {losses[0]:.6f} → {losses[-1]:.6f}"
+        )
 
     def test_custom_training_loop(
         self, synthetic_market_data: tuple[np.ndarray, np.ndarray]
@@ -201,9 +201,9 @@ class TestNeuralFGPTraining:
             losses.append(loss.item())
 
         assert all(np.isfinite(losses))
-        assert (
-            losses[-1] <= losses[0]
-        ), f"Expected loss to not increase: {losses[0]:.6f} → {losses[-1]:.6f}"
+        assert losses[-1] <= losses[0], (
+            f"Expected loss to not increase: {losses[0]:.6f} → {losses[-1]:.6f}"
+        )
 
     def test_custom_loss_function(
         self, synthetic_market_data: tuple[np.ndarray, np.ndarray]
@@ -492,9 +492,9 @@ class TestNeuralFGPGPUConsistency:
             mu = alpha / alpha.sum()
             val_cpu = trained_model_cpu.generating_function(mu)
             val_gpu = trained_model_gpu.generating_function(mu)
-            assert (
-                abs(val_cpu - val_gpu) < 1e-12
-            ), f"CPU={val_cpu:.15e}, GPU={val_gpu:.15e}"
+            assert abs(val_cpu - val_gpu) < 1e-12, (
+                f"CPU={val_cpu:.15e}, GPU={val_gpu:.15e}"
+            )
 
     def test_weights_cpu_gpu_match(
         self,
@@ -576,9 +576,9 @@ class TestNeuralFGPGPUConsistency:
         model = NeuralFGP(n_assets=5, config=config)
         model.fit(mw, returns=ret)
         losses = model.training_history["loss"]
-        assert (
-            losses[-1] <= losses[0]
-        ), f"GPU training loss did not decrease: {losses[0]:.6f} → {losses[-1]:.6f}"
+        assert losses[-1] <= losses[0], (
+            f"GPU training loss did not decrease: {losses[0]:.6f} → {losses[-1]:.6f}"
+        )
 
 
 # ---------------------------------------------------------------------------

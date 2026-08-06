@@ -221,9 +221,9 @@ class TestNeuralFGPConcavity:
         for mu in simplex_points[:10]:
             H = model.hessian(mu)
             eigvals = np.linalg.eigvalsh(H)
-            assert (
-                eigvals[-1] <= 1e-4
-            ), f"Hessian not NSD: max eigenvalue={eigvals[-1]:.6f}"
+            assert eigvals[-1] <= 1e-4, (
+                f"Hessian not NSD: max eigenvalue={eigvals[-1]:.6f}"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -736,9 +736,9 @@ class TestDriftIntegralLoss:
         grad = pred.grad
         assert grad is not None
         mean_grad = grad.mean(dim=0)
-        assert (
-            mean_grad[0] > 0
-        ), "Gradient on the dominant stock should be positive (increase loss)"
+        assert mean_grad[0] > 0, (
+            "Gradient on the dominant stock should be positive (increase loss)"
+        )
 
     def test_differentiable(self, cov_data, market_weights_fixture) -> None:
         """Loss supports full autograd."""
