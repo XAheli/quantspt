@@ -59,6 +59,7 @@ def synthetic_market(rng):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestCausalToNeuralFGP:
     """End-to-end pipeline through causal structure to Neural FGP."""
 
@@ -124,6 +125,7 @@ class TestCausalToNeuralFGP:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestSimulateToBacktest:
     """simulate GBM → estimate cov → diversity strategy → backtest."""
 
@@ -186,6 +188,7 @@ class TestSimulateToBacktest:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestCustomModelPipeline:
     """User nn.Module → wrap_torch_model → integrate with master formula."""
 
@@ -271,6 +274,7 @@ class TestCovarianceToGrowthRate:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.integration
 class TestNeuralFGPBacktest:
     """NeuralFGP trained model feeds into backtest engine."""
 

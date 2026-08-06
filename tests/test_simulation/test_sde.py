@@ -48,6 +48,7 @@ def two_asset_gbm():
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestEMConvergence:
     def test_convergence_order_positive(self, scalar_gbm: CorrelatedGBM) -> None:
         """Estimated convergence order should be positive."""
@@ -122,6 +123,7 @@ class TestAdaptiveEM:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.slow
 class TestMilsteinConvergence:
     def test_convergence_order_positive(self, scalar_gbm: CorrelatedGBM) -> None:
         result = verify_milstein_convergence(

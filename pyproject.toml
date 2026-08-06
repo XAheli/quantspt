@@ -110,10 +110,12 @@ include = ["quantspt*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "cpu: runs on CPU only (default for most tests)",
+    "gpu: requires CUDA GPU (PyTorch, pgmpy torch backend, sklearn GPU tensors)",
+    "slow: takes more than 10 seconds (simulations, Monte Carlo, ergodic tests)",
+    "integration: end-to-end multi-module test (data → model → backtest)",
     "property: property-based tests using Hypothesis",
     "golden: golden regression tests against cached outputs",
-    "gpu: tests requiring GPU acceleration",
 ]
 filterwarnings = [
     "error",
