@@ -12,7 +12,7 @@ def test_import_quantspt() -> None:
 def test_version_string() -> None:
     from quantspt._version import __version__
 
-    assert __version__ == "0.1.0.dev0"
+    assert __version__ == "0.1.0"
 
 
 def test_spt_result_basic() -> None:
