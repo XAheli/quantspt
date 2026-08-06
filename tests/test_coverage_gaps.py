@@ -346,6 +346,153 @@ class TestNeuralFGPCoverage:
         with pytest.raises(ImportError, match="quantspt\\[ml\\]"):
             _require_torch()
 
+    def test_input_convex_nn_default_hidden(self) -> None:
+        from quantspt.ml.neural_fgp import InputConvexNN
+
+        icnn = InputConvexNN(n_inputs=5)
+        assert icnn.n_inputs == 5
+        assert icnn.hidden_dims == [64, 64, 32]
+
+    def test_input_convex_nn_custom_hidden(self) -> None:
+        from quantspt.ml.neural_fgp import InputConvexNN
+
+        icnn = InputConvexNN(n_inputs=3, hidden_dims=[32, 16])
+        assert icnn.hidden_dims == [32, 16]
+
+    def test_input_convex_nn_bad_activation(self) -> None:
+        from quantspt.ml.neural_fgp import InputConvexNN
+
+        with pytest.raises(ValueError, match="Unsupported activation"):
+            InputConvexNN(n_inputs=3, activation="tanh")
+
+    def test_input_convex_nn_forward(self) -> None:
+        from quantspt.ml.neural_fgp import InputConvexNN
+
+        icnn = InputConvexNN(n_inputs=5, hidden_dims=[16, 8])
+        x = torch.rand(10, 5)
+        out = icnn(x)
+        assert out.shape == (10,)
+
+    def test_input_convex_nn_properties(self) -> None:
+        from quantspt.ml.neural_fgp import InputConvexNN
+
+        icnn = InputConvexNN(n_inputs=3, hidden_dims=[16])
+        assert icnn.module is not None
+        params = list(icnn.parameters())
+        assert len(params) > 0
+        icnn.train()
+        icnn.eval()
+        icnn.to("cpu")
+
+    def test_build_optimizer_unknown(self) -> None:
+        from quantspt.ml.neural_fgp import NeuralFGPConfig, _build_optimizer
+
+        config = NeuralFGPConfig()
+        config.optimizer = "nonexistent"
+        with pytest.raises(ValueError, match="Unknown optimizer"):
+            _build_optimizer([torch.zeros(1, requires_grad=True)], config)
+
+    def test_neural_fgp_basic_fit(self) -> None:
+        from quantspt.ml.neural_fgp import NeuralFGP, NeuralFGPConfig
+
+        rng = np.random.default_rng(42)
+        n = 5
+        T = 100
+        alpha = rng.exponential(size=(T, n))
+        mw = alpha / alpha.sum(axis=1, keepdims=True)
+        returns = 1.0 + rng.standard_normal((T, n)) * 0.01
+
+        config = NeuralFGPConfig(
+            hidden_dims=[16, 8],
+            epochs=3,
+            train_window=50,
+            eval_window=10,
+            device="cpu",
+        )
+        model = NeuralFGP(n_assets=n, config=config)
+        model.fit(mw, returns=returns)
+
+        mu = mw[0]
+        val = model.generating_function(mu)
+        assert val > 0
+        grad = model.log_gradient(mu)
+        assert grad.shape == (n,)
+        H = model.hessian(mu)
+        assert H.shape == (n, n)
+        w = model.weights(mu)
+        assert w.shape == (n,)
+        gf = model.to_generating_function()
+        assert gf is not None
+
+
+# ---------------------------------------------------------------------------
+# ml/__init__.py: lazy __getattr__ branches
+# ---------------------------------------------------------------------------
+
+
+class TestMLInitLazyLoading:
+    """Cover __getattr__ lazy-import branches in quantspt.ml."""
+
+    def test_neural_fgp_lazy(self) -> None:
+        from quantspt.ml import NeuralFGP
+
+        assert NeuralFGP is not None
+
+    def test_neural_fgp_config_lazy(self) -> None:
+        from quantspt.ml import NeuralFGPConfig
+
+        assert NeuralFGPConfig is not None
+
+    def test_input_convex_nn_lazy(self) -> None:
+        from quantspt.ml import InputConvexNN
+
+        assert InputConvexNN is not None
+
+    def test_hmm_regime_detector_lazy(self) -> None:
+        from quantspt.ml import HMMRegimeDetector
+
+        assert HMMRegimeDetector is not None
+
+    def test_changepoint_detector_lazy(self) -> None:
+        from quantspt.ml import ChangepointDetector
+
+        assert ChangepointDetector is not None
+
+    def test_factor_model_estimator_lazy(self) -> None:
+        from quantspt.ml import FactorModelEstimator
+
+        assert FactorModelEstimator is not None
+
+    def test_rmt_denoiser_lazy(self) -> None:
+        from quantspt.ml import RMTDenoiser
+
+        assert RMTDenoiser is not None
+
+    def test_losses_lazy(self) -> None:
+        from quantspt.ml import (
+            DriftIntegralLoss,
+            default_loss,
+            drift_integral_loss,
+            relative_return_loss,
+            sharpe_of_relative_loss,
+            turnover_penalty,
+            weight_regularization,
+        )
+
+        assert relative_return_loss is not None
+        assert weight_regularization is not None
+        assert turnover_penalty is not None
+        assert sharpe_of_relative_loss is not None
+        assert default_loss is not None
+        assert drift_integral_loss is not None
+        assert DriftIntegralLoss is not None
+
+    def test_unknown_attribute_raises(self) -> None:
+        import quantspt.ml
+
+        with pytest.raises(AttributeError, match="no attribute"):
+            _ = quantspt.ml.NonExistentThing  # type: ignore[attr-defined]
+
 
 # ---------------------------------------------------------------------------
 # ml/covariance.py: unfitted property access
