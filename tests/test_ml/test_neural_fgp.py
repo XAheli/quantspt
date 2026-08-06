@@ -582,6 +582,212 @@ class TestNeuralFGPGPUConsistency:
 
 
 # ---------------------------------------------------------------------------
+# Coverage: Training Internals (lines 123, 179, 191, 224, 232, 354, 362,
+#   367, 405, 409, 453, 460-462, 477-478, 528-545)
+# ---------------------------------------------------------------------------
+
+
+class TestNeuralFGPInternals:
+    """Exercise all internal code paths — no mocks, real execution."""
+
+    def test_unknown_optimizer_raises(self) -> None:
+        """Line 123: _build_optimizer raises ValueError for unknown name."""
+        config = NeuralFGPConfig(
+            optimizer="nosuchoptimizer",
+            hidden_dims=[16, 8],
+            epochs=1,
+            train_window=20,
+            eval_window=5,
+        )
+        model = NeuralFGP(n_assets=3, config=config)
+        rng = np.random.default_rng(99)
+        mw = rng.dirichlet(np.ones(3), size=50).astype(np.float64)
+        with pytest.raises(ValueError, match="Unknown optimizer"):
+            model.fit(mw)
+
+    def test_icnn_default_hidden_dims(self) -> None:
+        """Line 179: InputConvexNN uses [64,64,32] when hidden_dims=None."""
+        icnn = InputConvexNN(n_inputs=4, hidden_dims=None)
+        assert icnn.hidden_dims == [64, 64, 32]
+        x = torch.randn(2, 4)
+        out = icnn(x)
+        assert out.shape == (2,)
+
+    def test_icnn_unsupported_activation_raises(self) -> None:
+        """Line 191: InputConvexNN raises ValueError for bad activation."""
+        with pytest.raises(ValueError, match="Unsupported activation"):
+            InputConvexNN(n_inputs=3, hidden_dims=[16], activation="elu")
+
+    def test_icnn_module_property(self) -> None:
+        """Line 224: .module property returns the underlying nn.Module."""
+        import torch.nn as nn
+
+        icnn = InputConvexNN(n_inputs=3, hidden_dims=[16, 8])
+        mod = icnn.module
+        assert isinstance(mod, nn.Module)
+        assert hasattr(mod, "W0")
+
+    def test_icnn_train_method(self) -> None:
+        """Line 232: .train() sets the module to training mode."""
+        icnn = InputConvexNN(n_inputs=3, hidden_dims=[16, 8])
+        icnn.eval()
+        assert not icnn._module.training
+        icnn.train()
+        assert icnn._module.training
+
+    def test_neural_fgp_config_property(self) -> None:
+        """Line 354: .config property returns the NeuralFGPConfig."""
+        cfg = NeuralFGPConfig(epochs=77)
+        model = NeuralFGP(n_assets=3, config=cfg)
+        assert model.config is cfg
+        assert model.config.epochs == 77
+
+    def test_neural_fgp_n_assets_property(self) -> None:
+        """Line 362: .n_assets property returns the asset count."""
+        model = NeuralFGP(n_assets=7)
+        assert model.n_assets == 7
+
+    def test_parameters_before_setup_raises(self) -> None:
+        """Line 367: .parameters() before setup() raises RuntimeError."""
+        model = NeuralFGP(n_assets=5)
+        with pytest.raises(RuntimeError, match=r"setup.*fit"):
+            model.parameters()
+
+    def test_training_step_before_setup_raises(self) -> None:
+        """Line 405: training_step() before setup() raises RuntimeError."""
+        model = NeuralFGP(n_assets=3)
+        mw_t = torch.randn(10, 3)
+        ret_t = torch.randn(10, 3)
+        with pytest.raises(RuntimeError, match="setup"):
+            model.training_step(mw_t, ret_t)
+
+    def test_training_step_single_row_returns_zero(self) -> None:
+        """Line 409: training_step with T<=0 returns zero-grad tensor."""
+        model = NeuralFGP(n_assets=3, config=NeuralFGPConfig(hidden_dims=[8]))
+        model.setup()
+        mw_t = torch.tensor([[0.3, 0.4, 0.3]])
+        ret_t = torch.tensor([[1.01, 0.99, 1.0]])
+        loss = model.training_step(mw_t, ret_t)
+        assert loss.item() == pytest.approx(0.0)
+        assert loss.requires_grad
+
+    def test_fit_with_loss_fn_override(self) -> None:
+        """Line 453: passing loss_fn to fit() overrides the model's loss."""
+        from quantspt.ml.losses import sharpe_of_relative_loss
+
+        rng = np.random.default_rng(11)
+        mw = rng.dirichlet(np.ones(4), size=100).astype(np.float64)
+        ret = mw[1:] / mw[:-1]
+        mw = mw[:-1]
+
+        config = NeuralFGPConfig(
+            hidden_dims=[16, 8],
+            epochs=3,
+            train_window=30,
+            eval_window=10,
+            seed=11,
+        )
+        model = NeuralFGP(n_assets=4, config=config)
+        model.fit(mw, returns=ret, loss_fn=sharpe_of_relative_loss)
+        assert len(model.training_history["loss"]) > 0
+
+    def test_fit_derives_returns_when_none(self) -> None:
+        """Lines 460-462: fit() computes returns from market_weights when not provided."""
+        rng = np.random.default_rng(22)
+        mw = rng.dirichlet(np.ones(3), size=80).astype(np.float64)
+
+        config = NeuralFGPConfig(
+            hidden_dims=[16, 8],
+            epochs=3,
+            train_window=20,
+            eval_window=10,
+            seed=22,
+        )
+        model = NeuralFGP(n_assets=3, config=config)
+        model.fit(mw)  # no `returns=` argument
+        assert model._fitted
+        assert len(model.training_history["loss"]) > 0
+
+    def test_fit_non_walk_forward_single_split(self) -> None:
+        """Lines 477-478, 528-545: walk_forward=False uses _train_single."""
+        rng = np.random.default_rng(33)
+        mw = rng.dirichlet(np.ones(4), size=120).astype(np.float64)
+        ret = mw[1:] / mw[:-1]
+        mw = mw[:-1]
+
+        config = NeuralFGPConfig(
+            hidden_dims=[16, 8],
+            epochs=10,
+            walk_forward=False,
+            learning_rate=5e-3,
+            seed=33,
+        )
+        model = NeuralFGP(n_assets=4, config=config)
+        model.fit(mw, returns=ret, validation_split=0.2)
+        assert model._fitted
+        losses = model.training_history["loss"]
+        val_losses = model.training_history["val_loss"]
+        assert len(losses) > 0
+        assert len(val_losses) == len(losses)
+
+    @pytest.mark.slow
+    def test_full_training_session_all_paths(self) -> None:
+        """Full training covering walk-forward, early stopping, and inference."""
+        rng = np.random.default_rng(42)
+        mw = rng.dirichlet(np.ones(5), size=200).astype(np.float64)
+
+        config = NeuralFGPConfig(
+            hidden_dims=[16, 8],
+            epochs=30,
+            learning_rate=1e-3,
+            train_window=50,
+            eval_window=20,
+            early_stopping_patience=10,
+            walk_forward=True,
+            seed=42,
+        )
+
+        model = NeuralFGP(n_assets=5, config=config)
+        model.fit(mw)
+
+        assert model._fitted
+        assert len(model.training_history["loss"]) > 0
+        assert len(model.training_history["val_loss"]) > 0
+
+        G = model.to_generating_function()
+        assert isinstance(G, GeneratingFunction)
+
+        mu = mw[-1]
+        g_val = model.generating_function(mu)
+        assert g_val > 0
+
+        pi = model.weights(mu)
+        assert abs(pi.sum() - 1.0) < 1e-6
+        assert np.all(pi >= 0)
+
+    @pytest.mark.slow
+    def test_single_split_early_stopping(self) -> None:
+        """Lines 528-545: _train_single can trigger early stopping."""
+        rng = np.random.default_rng(55)
+        mw = rng.dirichlet(np.ones(4), size=200).astype(np.float64)
+        ret = mw[1:] / mw[:-1]
+        mw = mw[:-1]
+
+        config = NeuralFGPConfig(
+            hidden_dims=[32, 16],
+            epochs=200,
+            walk_forward=False,
+            early_stopping_patience=5,
+            learning_rate=1e-2,
+            seed=55,
+        )
+        model = NeuralFGP(n_assets=4, config=config)
+        model.fit(mw, returns=ret, validation_split=0.2)
+        assert model._fitted
+        assert len(model.training_history["loss"]) < 200
+
+
+# ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
