@@ -23,7 +23,9 @@ from numpy.testing import assert_allclose
 from quantspt.core.generating_functions import GeneratingFunction
 from quantspt.core.master_formula import master_formula_decomposition
 from quantspt.ml.losses import (
+    DriftIntegralLoss,
     default_loss,
+    drift_integral_loss,
     relative_return_loss,
     sharpe_of_relative_loss,
     turnover_penalty,
@@ -572,3 +574,305 @@ class TestFloat64Precision:
         wrapper = wrap_torch_model(QuadConvex(), n_assets=5, positivity_offset=2.0)
         w = wrapper.weights(simplex_point)
         assert w.dtype == np.float64
+
+
+# ---------------------------------------------------------------------------
+# Drift integral loss
+# ---------------------------------------------------------------------------
+
+
+class TestDriftIntegralLoss:
+    """Verify drift_integral_loss computes the correct excess growth rate
+    differential and produces gradients pointing toward higher diversification."""
+
+    @pytest.fixture
+    def cov_data(self):
+        """Diagonal covariance matrices (5 assets, 20 timesteps)."""
+        torch.manual_seed(42)
+        T = 20
+        vols = torch.tensor([0.20, 0.25, 0.30, 0.15, 0.22])
+        cov = torch.diag(vols**2).unsqueeze(0).expand(T, -1, -1)
+        return cov
+
+    @pytest.fixture
+    def market_weights_fixture(self):
+        """Pareto-distributed market weights (realistic: top-heavy)."""
+        torch.manual_seed(42)
+        rng_np = np.random.default_rng(42)
+        raw = rng_np.pareto(1.0, size=(20, 5)) + 1.0
+        mw = raw / raw.sum(axis=1, keepdims=True)
+        return torch.tensor(mw, dtype=torch.float64)
+
+    def test_returns_scalar(self, cov_data, market_weights_fixture) -> None:
+        """drift_integral_loss returns a finite scalar."""
+        pred = market_weights_fixture.clone()
+        loss = drift_integral_loss(pred, market_weights_fixture, cov_data, 1 / 252)
+        assert loss.shape == ()
+        assert torch.isfinite(loss)
+
+    def test_zero_drift_when_weights_equal_market(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """If predicted weights == market weights, drift is zero."""
+        loss = drift_integral_loss(
+            market_weights_fixture, market_weights_fixture, cov_data, 1 / 252
+        )
+        assert_allclose(loss.item(), 0.0, atol=1e-12)
+
+    def test_diversified_portfolio_has_lower_loss(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """More diversified (equal-weight) portfolio should have lower loss
+        than the concentrated market portfolio, because its excess growth
+        rate is higher."""
+        T, n = 20, 5
+        equal_w = torch.ones(T, n, dtype=torch.float64) / n
+        loss_equal = drift_integral_loss(
+            equal_w, market_weights_fixture, cov_data, 1 / 252
+        )
+        loss_market = drift_integral_loss(
+            market_weights_fixture, market_weights_fixture, cov_data, 1 / 252
+        )
+        assert loss_equal.item() < loss_market.item(), (
+            f"Equal-weight loss {loss_equal.item():.8f} should be less than "
+            f"market-weight loss {loss_market.item():.8f}"
+        )
+
+    def test_concentrated_portfolio_has_higher_loss(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """Single-stock portfolio (no diversification) should have higher
+        loss than the market portfolio."""
+        T, n = 20, 5
+        concentrated = torch.zeros(T, n, dtype=torch.float64)
+        concentrated[:, 0] = 1.0
+        loss_conc = drift_integral_loss(
+            concentrated, market_weights_fixture, cov_data, 1 / 252
+        )
+        loss_market = drift_integral_loss(
+            market_weights_fixture, market_weights_fixture, cov_data, 1 / 252
+        )
+        assert loss_conc.item() > loss_market.item()
+
+    def test_gradient_points_toward_diversification(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """Gradient of a concentrated portfolio should push weights
+        toward diversification (reduce concentration)."""
+        T, n = 20, 5
+        pred = torch.zeros(T, n, dtype=torch.float64)
+        pred[:, 0] = 0.80
+        pred[:, 1:] = 0.05
+        pred = pred.clone().requires_grad_(True)
+
+        loss = drift_integral_loss(pred, market_weights_fixture, cov_data, 1 / 252)
+        loss.backward()
+
+        grad = pred.grad
+        assert grad is not None
+        mean_grad = grad.mean(dim=0)
+        assert (
+            mean_grad[0] > 0
+        ), "Gradient on the dominant stock should be positive (increase loss)"
+
+    def test_differentiable(self, cov_data, market_weights_fixture) -> None:
+        """Loss supports full autograd."""
+        pred = market_weights_fixture.clone().requires_grad_(True)
+        loss = drift_integral_loss(pred, market_weights_fixture, cov_data, 1 / 252)
+        loss.backward()
+        assert pred.grad is not None
+        assert torch.all(torch.isfinite(pred.grad))
+
+    def test_scales_with_dt(self, cov_data, market_weights_fixture) -> None:
+        """Doubling dt should double the drift integral."""
+        T, n = 20, 5
+        equal_w = torch.ones(T, n, dtype=torch.float64) / n
+        loss_dt1 = drift_integral_loss(
+            equal_w, market_weights_fixture, cov_data, 1 / 252
+        )
+        loss_dt2 = drift_integral_loss(
+            equal_w, market_weights_fixture, cov_data, 2 / 252
+        )
+        assert_allclose(loss_dt2.item(), 2 * loss_dt1.item(), rtol=1e-10)
+
+    def test_class_interface_matches_function(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """DriftIntegralLoss class produces same result as the function."""
+        T, n = 20, 5
+        equal_w = torch.ones(T, n, dtype=torch.float64) / n
+        dummy_returns = torch.ones(T, n, dtype=torch.float64)
+
+        func_loss = drift_integral_loss(
+            equal_w, market_weights_fixture, cov_data, 1 / 252
+        )
+        cls_loss = DriftIntegralLoss(dt=1 / 252)(
+            equal_w,
+            dummy_returns,
+            market_weights=market_weights_fixture,
+            covariance_matrices=cov_data,
+        )
+        assert_allclose(cls_loss.item(), func_loss.item(), rtol=1e-12)
+
+    def test_class_raises_without_required_kwargs(self) -> None:
+        """DriftIntegralLoss raises if market_weights or covariances missing."""
+        loss_fn = DriftIntegralLoss()
+        w = torch.rand(10, 5)
+        r = torch.ones(10, 5)
+        with pytest.raises(ValueError, match="market_weights"):
+            loss_fn(w, r)
+
+    def test_composable_with_other_losses(
+        self, cov_data, market_weights_fixture
+    ) -> None:
+        """DriftIntegralLoss can be composed with other losses."""
+        combined = DriftIntegralLoss(dt=1 / 252) + 0.01 * weight_regularization
+        assert combined is not None
+
+
+# ---------------------------------------------------------------------------
+# Test data quality: edge cases and scale diversity
+# ---------------------------------------------------------------------------
+
+
+class TestEdgeCaseWeights:
+    """Verify losses and wrappers handle edge-case market structures."""
+
+    def test_loss_with_dominant_stock(self, dominant_stock_weights) -> None:
+        """Loss functions work with a single dominant stock (~90%)."""
+        T = 15
+        w = np.tile(dominant_stock_weights, (T, 1))
+        w_t = torch.tensor(w, dtype=torch.float64)
+        r_t = 1.0 + torch.randn(T, 5, dtype=torch.float64) * 0.01
+        loss = relative_return_loss(w_t, r_t)
+        assert torch.isfinite(loss)
+        loss2 = weight_regularization(w_t, r_t)
+        assert loss2.item() > 0
+
+    def test_loss_with_near_equal_weights(self, near_equal_weights_5) -> None:
+        """Loss functions work with near-equal (1/n) weights."""
+        T = 15
+        w = np.tile(near_equal_weights_5, (T, 1))
+        w_t = torch.tensor(w, dtype=torch.float64)
+        r_t = 1.0 + torch.randn(T, 5, dtype=torch.float64) * 0.01
+        loss = relative_return_loss(w_t, r_t)
+        assert torch.isfinite(loss)
+
+    def test_loss_with_near_zero_weights(self, near_zero_weights) -> None:
+        """Loss functions handle weights very close to zero."""
+        T = 15
+        w = np.tile(near_zero_weights, (T, 1))
+        w_t = torch.tensor(w, dtype=torch.float64)
+        r_t = 1.0 + torch.randn(T, 5, dtype=torch.float64) * 0.01
+        loss = relative_return_loss(w_t, r_t)
+        assert torch.isfinite(loss)
+
+    def test_wrapper_with_dominant_stock(self, dominant_stock_weights) -> None:
+        """Torch model wrapper produces valid weights for dominant-stock input."""
+
+        class QuadConvex(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper = wrap_torch_model(QuadConvex(), n_assets=5, positivity_offset=2.0)
+        w = wrapper.weights(dominant_stock_weights)
+        assert abs(w.sum() - 1.0) < 1e-4
+        assert np.all(np.isfinite(w))
+
+    def test_wrapper_with_near_zero_weights(self, near_zero_weights) -> None:
+        """Wrapper handles near-zero weight inputs without numerical blow-up."""
+
+        class QuadConvex(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper = wrap_torch_model(QuadConvex(), n_assets=5, positivity_offset=2.0)
+        G = wrapper.generating_function(near_zero_weights)
+        assert G > 0
+        assert np.isfinite(G)
+
+
+class TestScaleDiversity:
+    """Verify core operations at different asset counts: 2, 50."""
+
+    def test_2_asset_loss(self) -> None:
+        """Loss functions work with a 2-stock market."""
+        torch.manual_seed(42)
+        T, n = 20, 2
+        w = torch.rand(T, n, dtype=torch.float64)
+        w = w / w.sum(dim=-1, keepdim=True)
+        r = 1.0 + torch.randn(T, n, dtype=torch.float64) * 0.01
+        for loss_fn in [
+            relative_return_loss,
+            weight_regularization,
+            turnover_penalty,
+            sharpe_of_relative_loss,
+        ]:
+            loss = loss_fn(w, r)
+            assert loss.shape == ()
+            assert torch.isfinite(loss)
+
+    def test_50_asset_loss(self) -> None:
+        """Loss functions work with a 50-stock market."""
+        torch.manual_seed(42)
+        T, n = 20, 50
+        w = torch.rand(T, n, dtype=torch.float64)
+        w = w / w.sum(dim=-1, keepdim=True)
+        r = 1.0 + torch.randn(T, n, dtype=torch.float64) * 0.01
+        for loss_fn in [
+            relative_return_loss,
+            weight_regularization,
+            turnover_penalty,
+            sharpe_of_relative_loss,
+        ]:
+            loss = loss_fn(w, r)
+            assert loss.shape == ()
+            assert torch.isfinite(loss)
+
+    def test_2_asset_wrapper(self) -> None:
+        """Torch wrapper works with 2-asset simplex."""
+
+        class QuadConvex2(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper = wrap_torch_model(QuadConvex2(), n_assets=2, positivity_offset=2.0)
+        mu = np.array([0.6, 0.4])
+        w = wrapper.weights(mu)
+        assert abs(w.sum() - 1.0) < 1e-4
+
+    def test_50_asset_wrapper(self, pareto_weights_50) -> None:
+        """Torch wrapper works with 50-asset Pareto-distributed weights."""
+
+        class QuadConvex50(nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return (x**2).sum(dim=-1)
+
+        wrapper = wrap_torch_model(QuadConvex50(), n_assets=50, positivity_offset=2.0)
+        w = wrapper.weights(pareto_weights_50)
+        assert abs(w.sum() - 1.0) < 1e-4
+        assert np.all(np.isfinite(w))
+
+    def test_drift_integral_loss_50_assets(self, pareto_weights_50) -> None:
+        """Drift integral loss works with 50-asset Pareto market.
+
+        With uniform volatilities, equal-weight provably maximises the
+        excess growth rate, so the drift integral must be negative (loss
+        wants to be minimised).
+        """
+        T, n = 15, 50
+        mw = np.tile(pareto_weights_50, (T, 1))
+        eq_w = np.ones((T, n)) / n
+        vol = 0.20
+        cov = np.zeros((T, n, n))
+        for t in range(T):
+            cov[t] = np.eye(n) * vol**2
+
+        mw_t = torch.tensor(mw, dtype=torch.float64)
+        eq_t = torch.tensor(eq_w, dtype=torch.float64)
+        cov_t = torch.tensor(cov, dtype=torch.float64)
+
+        loss = drift_integral_loss(eq_t, mw_t, cov_t, 1 / 252)
+        assert loss.shape == ()
+        assert torch.isfinite(loss)
+        assert loss.item() < 0  # equal-weight outperforms Pareto with uniform vols
