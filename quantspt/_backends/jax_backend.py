@@ -60,7 +60,7 @@ class JaxBackend:
         def _relative_covariance(a: Any, pi: Any) -> Any:
             a_pi = a @ pi
             a_pipi = pi @ a_pi
-            return a - jnp.outer(a_pi, a_pi) + a_pipi
+            return a - (a_pi[:, None] + a_pi[None, :]) + a_pipi
 
         @jax.jit  # type: ignore[misc]
         def _portfolio_variance(a: Any, pi: Any) -> Any:
