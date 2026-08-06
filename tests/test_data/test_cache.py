@@ -265,13 +265,15 @@ class TestComputationCache:
 
         cache.register(
             "a",
-            lambda: counters["a"].__setitem__(0, counters["a"][0] + 1)
-            or counters["a"][0],
+            lambda: (
+                counters["a"].__setitem__(0, counters["a"][0] + 1) or counters["a"][0]
+            ),
         )
         cache.register(
             "b",
-            lambda: counters["b"].__setitem__(0, counters["b"][0] + 1)
-            or counters["b"][0],
+            lambda: (
+                counters["b"].__setitem__(0, counters["b"][0] + 1) or counters["b"][0]
+            ),
         )
 
         cache.get("a")

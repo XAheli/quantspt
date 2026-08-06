@@ -338,7 +338,7 @@ def _detect_splits_array(
     ratio_tolerance: float,
 ) -> list[tuple[int, int, float]]:
     """Detect splits in a numpy array of prices."""
-    T, n = prices.shape
+    _T, n = prices.shape
     results: list[tuple[int, int, float]] = []
 
     for j in range(n):

@@ -17,20 +17,20 @@ import pytest
 from numpy.testing import assert_allclose
 
 pytest.importorskip("sklearn")
-from sklearn.decomposition import PCA  # noqa: E402
-from sklearn.gaussian_process import GaussianProcessRegressor  # noqa: E402
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel  # noqa: E402
-from sklearn.pipeline import Pipeline  # noqa: E402
-from sklearn.preprocessing import StandardScaler  # noqa: E402
+from sklearn.decomposition import PCA
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
-from quantspt.core.generating_functions import GeneratingFunction  # noqa: E402
-from quantspt.integrations.sklearn import (  # noqa: E402
+from quantspt.core.generating_functions import GeneratingFunction
+from quantspt.integrations.sklearn import (
     DiversityFeature,
     ExcessGrowthFeature,
     SPTTransformer,
 )
-from quantspt.ml._protocols import GeneratingFunctionModel  # noqa: E402
-from quantspt.ml.wrappers import wrap_sklearn_estimator  # noqa: E402
+from quantspt.ml._protocols import GeneratingFunctionModel
+from quantspt.ml.wrappers import wrap_sklearn_estimator
 
 try:
     import torch

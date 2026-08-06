@@ -231,7 +231,7 @@ class TestMultipleTestingCorrection:
     def test_bonferroni_scales_by_m(self) -> None:
         """Bonferroni: adjusted = min(m * p, 1)."""
         p_values = np.array([0.01, 0.04, 0.05])
-        adjusted, sig = multiple_testing_correction(
+        adjusted, _sig = multiple_testing_correction(
             p_values, method="bonferroni", alpha=0.05
         )
         assert_allclose(adjusted[0], 0.03)
