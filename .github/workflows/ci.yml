@@ -18,7 +18,7 @@ jobs:
       - run: ruff check quantspt/ tests/
       - run: ruff format --check quantspt/ tests/
 
-  test:
+  test-cpu:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev,viz,opt]"
-      - run: pytest tests/ -v --tb=short --cov=quantspt --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+      - run: pytest tests/ -m "not gpu and not slow" -v --tb=short --cov=quantspt --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
         uses: codecov/codecov-action@v5
@@ -50,6 +50,42 @@ jobs:
         uses: codecov/test-results-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-slow:
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev,viz,opt,sim]"
+      - run: pytest tests/ -m "slow and not gpu" -v --tb=short
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: [test-cpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[all]"
+      - run: pytest tests/ -m "integration" -v --tb=short
+
+  # GPU tests require a self-hosted runner with NVIDIA GPU.
+  # Uncomment when self-hosted GPU runners are available:
+  #
+  # test-gpu:
+  #   runs-on: [self-hosted, gpu]
+  #   needs: [lint]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #     - run: pip install -e ".[all]"
+  #     - run: pytest tests/ -m "gpu" -v --tb=short
 
   typecheck:
     runs-on: ubuntu-latest
