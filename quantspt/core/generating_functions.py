@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -677,7 +677,7 @@ class AutoDiffGeneratingFunction(GeneratingFunction):
         import jax
         import jax.numpy as jnp
 
-        def log_G(x: jnp.ndarray) -> jnp.ndarray:  # type: ignore[name-defined]
+        def log_G(x: Any) -> Any:
             return jnp.log(self._func(x))
 
         grad_fn = jax.grad(log_G)
@@ -689,7 +689,7 @@ class AutoDiffGeneratingFunction(GeneratingFunction):
         import jax
         import jax.numpy as jnp
 
-        def G_fn(x: jnp.ndarray) -> jnp.ndarray:  # type: ignore[name-defined]
+        def G_fn(x: Any) -> Any:
             return self._func(x)
 
         hess_fn = jax.hessian(G_fn)

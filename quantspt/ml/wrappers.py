@@ -194,7 +194,7 @@ class TorchModelWrapper:
                 return -self._model(x.unsqueeze(0)).squeeze() + self._offset
             return self._model(x.unsqueeze(0)).squeeze()
 
-        H = torch.autograd.functional.hessian(G_func, mu_t)
+        H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
         self._model.float()
         H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
         return (H_np + H_np.T) / 2.0
