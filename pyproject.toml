@@ -60,6 +60,7 @@ gpu = [
     "jaxlib>=0.4",
 ]
 data = [
+    "pyarrow>=14.0",
     "yfinance>=0.2",
     "pydantic>=2.0",
 ]
