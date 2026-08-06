@@ -141,27 +141,39 @@ class TorchModelWrapper:
         return self._model(x)
 
     def generating_function(self, mu: NDArray[np.float64]) -> float:
-        """Evaluate G_θ(μ)."""
+        """Evaluate G_θ(μ) in float64 precision."""
         import torch
 
-        mu_t = torch.tensor(mu, dtype=torch.float32, device=self._device)
-        with torch.no_grad():
-            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+        mu_t = torch.tensor(mu, dtype=torch.float64, device=self._device)
+        self._model.double()
+        try:
+            with torch.no_grad():
+                G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+        finally:
+            self._model.float()
         return float(G_val.item())
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
-        """Compute ∇ log G_θ(μ) via PyTorch autograd."""
+        """Compute ∇ log G_θ(μ) via PyTorch autograd in float64.
+
+        Temporarily casts model to float64 for precision, matching
+        the hessian method's approach.
+        """
         import torch
 
         mu_t = torch.tensor(
-            mu, dtype=torch.float32, device=self._device
+            mu, dtype=torch.float64, device=self._device
         ).requires_grad_(True)
 
-        G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
-        G_val = torch.clamp(G_val, min=1e-8)
-        log_G = torch.log(G_val)
+        self._model.double()
+        try:
+            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+            G_val = torch.clamp(G_val, min=1e-8)
+            log_G = torch.log(G_val)
+            (grad,) = torch.autograd.grad(log_G, mu_t)
+        finally:
+            self._model.float()
 
-        (grad,) = torch.autograd.grad(log_G, mu_t)
         return grad.detach().cpu().numpy().astype(np.float64)
 
     def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
