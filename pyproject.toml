@@ -148,6 +148,7 @@ module = [
     "ruptures.*",
     "pgmpy.*",
     "networkx.*",
+    "sklearn.*",
 ]
 ignore_missing_imports = true
 

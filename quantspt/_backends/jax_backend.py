@@ -50,29 +50,29 @@ class JaxBackend:
         jax = self._jax
         jnp = self._jnp
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _excess_growth_rate(pi: Any, a: Any) -> Any:
             weighted_var = jnp.dot(pi, jnp.diag(a))
             port_var = pi @ a @ pi
             return 0.5 * (weighted_var - port_var)
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _relative_covariance(a: Any, pi: Any) -> Any:
             a_pi = a @ pi
             a_pipi = pi @ a_pi
             return a - (a_pi[:, None] + a_pi[None, :]) + a_pipi
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _portfolio_variance(a: Any, pi: Any) -> Any:
             return pi @ a @ pi
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _simulate_gbm_step(x: Any, mu: Any, cholesky: Any, dt: Any, dw: Any) -> Any:
             a_diag = jnp.sum(cholesky**2, axis=1)
             log_inc = (mu - 0.5 * a_diag) * dt + cholesky @ dw
             return x * jnp.exp(log_inc)
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _diversity_weights(mu: Any, p: Any) -> Any:
             mu_p = mu**p
             return mu_p / jnp.sum(mu_p)
@@ -155,7 +155,7 @@ class JaxBackend:
         jnp = self._jnp
         jax = self._jax
 
-        @jax.jit  # type: ignore[misc]
+        @jax.jit  # type: ignore[misc, untyped-decorator]
         def _shrink(rets: Any, alpha: Any) -> Any:
             n_obs = rets.shape[0]
             mean = jnp.mean(rets, axis=0)

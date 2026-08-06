@@ -182,6 +182,7 @@ class InputConvexNN:
         self.hidden_dims = hidden_dims
         K = len(hidden_dims)
 
+        self._activation: nn.Module
         if activation == "softplus":
             self._activation = nn.Softplus()
         elif activation == "relu":
@@ -256,7 +257,7 @@ class InputConvexNN:
         z = self._activation(self._W0(x))
         for Wz_k, Ux_k in zip(self._Wz, self._Ux, strict=False):
             z = self._activation(
-                F.linear(z, Wz_k.weight, None) + F.linear(x, Ux_k.weight, Ux_k.bias)
+                F.linear(z, Wz_k.weight, None) + F.linear(x, Ux_k.weight, Ux_k.bias)  # type: ignore[arg-type]
             )
         f = F.linear(z, self._w_out.weight, None).squeeze(-1) + self._u_out(x).squeeze(
             -1
@@ -642,7 +643,7 @@ class NeuralFGP:
         def G_func(x: torch.Tensor) -> torch.Tensor:
             return -net(x.unsqueeze(0)).squeeze() + self._config.positivity_offset
 
-        H = torch.autograd.functional.hessian(G_func, mu_t)
+        H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
         net.float()
         H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
         return (H_np + H_np.T) / 2.0
