@@ -75,6 +75,42 @@ class SPTResult(Generic[T]):
             return bool(np.all(np.isfinite(self.data)))
         return True
 
+    def chart(self, **kwargs: Any) -> Any:
+        """Dispatch to the appropriate visualisation for *data*.
+
+        For array-like data, produces a simple matplotlib line chart.
+        Subclasses or result types with richer semantics (e.g.
+        ``BacktestResult``) should override or extend this.
+
+        Returns the matplotlib Figure, or ``None`` when matplotlib
+        is unavailable.
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            return None
+
+        fig, ax = plt.subplots(**kwargs)
+        if isinstance(self.data, pd.DataFrame):
+            self.data.plot(ax=ax)
+        elif isinstance(self.data, np.ndarray):
+            if self.data.ndim == 1:
+                ax.plot(self.data)
+            else:
+                for col in range(self.data.shape[1]):
+                    ax.plot(self.data[:, col])
+        else:
+            ax.text(
+                0.5,
+                0.5,
+                repr(self.data),
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+        ax.set_title(self.metadata.get("title", "SPTResult"))
+        return fig
+
     def __repr__(self) -> str:
         return (
             f"SPTResult(data_type={type(self.data).__name__}, "

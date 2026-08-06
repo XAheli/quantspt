@@ -23,7 +23,10 @@ from numpy.typing import NDArray
 from .._preconditions import require
 
 __all__ = [
+    "CausalGraph",
+    "FactorLoadings",
     "MarketPanel",
+    "RegimeLabels",
     "ReturnsMatrix",
     "WeightVector",
 ]
@@ -184,3 +187,88 @@ class ReturnsMatrix:
         if isinstance(self.returns, pd.DataFrame):
             return self.returns.to_numpy(dtype=np.float64)
         return np.asarray(self.returns, dtype=np.float64)
+
+
+@dataclass
+class CausalGraph:
+    """Directed graph discovered by causal structure learning.
+
+    Attributes
+    ----------
+    adjacency_matrix : ndarray of shape (n, n)
+        Binary or weighted adjacency matrix. Entry (i, j) > 0 indicates
+        a directed edge from variable i to variable j.
+    variable_names : list of str
+        Names of the n variables.
+    edge_weights : ndarray of shape (n, n), optional
+        Edge strengths (defaults to *adjacency_matrix*).
+    discovery_method : str
+        Algorithm used: ``'pc'``, ``'ges'``, ``'hillclimb'``, etc.
+    """
+
+    adjacency_matrix: NDArray[np.float64]
+    variable_names: list[str]
+    edge_weights: NDArray[np.float64] | None = None
+    discovery_method: str = "unknown"
+
+    def __post_init__(self) -> None:
+        n = len(self.variable_names)
+        require(
+            self.adjacency_matrix.shape == (n, n),
+            f"Adjacency matrix shape {self.adjacency_matrix.shape} "
+            f"does not match {n} variables",
+        )
+
+
+@dataclass
+class RegimeLabels:
+    """Regime classification output from a regime detector.
+
+    Attributes
+    ----------
+    labels : ndarray of shape (T,)
+        Integer regime label for each time step.
+    n_regimes : int
+        Number of distinct regimes.
+    transition_matrix : ndarray of shape (K, K), optional
+        Estimated regime transition probabilities.
+    regime_statistics : dict, optional
+        Per-regime summary statistics (mean, volatility, etc.).
+    """
+
+    labels: NDArray[np.int64]
+    n_regimes: int
+    transition_matrix: NDArray[np.float64] | None = None
+    regime_statistics: dict[int, dict[str, Any]] | None = None
+
+    def __post_init__(self) -> None:
+        unique = np.unique(self.labels)
+        require(
+            len(unique) <= self.n_regimes,
+            f"Found {len(unique)} unique labels but n_regimes={self.n_regimes}",
+        )
+
+
+@dataclass
+class FactorLoadings:
+    """Factor loading matrix from a factor model.
+
+    Attributes
+    ----------
+    loadings : ndarray of shape (n, k)
+        Loading matrix B mapping k factors to n assets.
+    factor_names : list of str, optional
+        Factor identifiers.
+    explained_variance : ndarray of shape (k,), optional
+        Variance explained by each factor.
+    """
+
+    loadings: NDArray[np.float64]
+    factor_names: list[str] | None = None
+    explained_variance: NDArray[np.float64] | None = None
+
+    def __post_init__(self) -> None:
+        require(
+            self.loadings.ndim == 2,
+            f"Loadings must be 2-D, got shape {self.loadings.shape}",
+        )
