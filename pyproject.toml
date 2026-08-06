@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quantspt"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "The definitive Python library for Stochastic Portfolio Theory"
 readme = "README.md"
 license = { text = "MIT" }
