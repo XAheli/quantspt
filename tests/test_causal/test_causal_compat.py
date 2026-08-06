@@ -9,6 +9,7 @@ Validates that:
 - User passes own LinearGaussianBayesianNetwork → works
 - observational_covariance matches numpy cov (up to finite-sample)
 - interventional_covariance actually changes the matrix vs observational
+- GPU (torch backend): results match CPU (numpy backend)
 """
 
 from __future__ import annotations
@@ -20,6 +21,13 @@ from numpy.testing import assert_allclose
 
 from quantspt.causal.covariance import CausalCovarianceEstimator
 from quantspt.causal.structure import CausalStructureLearner
+
+try:
+    import torch
+
+    CUDA_AVAILABLE = torch.cuda.is_available()
+except ImportError:
+    CUDA_AVAILABLE = False
 
 
 @pytest.fixture
@@ -270,3 +278,138 @@ class TestCovarianceDecomposition:
         assert abs(decomp.B[idx["Y"], idx["X"]]) > 0.5
         assert abs(decomp.B[idx["Z"], idx["Y"]]) > 0.3
         assert abs(decomp.B[idx["Z"], idx["X"]]) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# GPU/CPU consistency (pgmpy torch backend)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
+class TestCausalStructureGPUConsistency:
+    """Verify pgmpy torch backend on CUDA matches numpy backend results."""
+
+    def test_ges_adjacency_cpu_gpu_match(self, chain_data_large) -> None:
+        """GES discovery produces same adjacency on CPU and GPU."""
+        learner_cpu = CausalStructureLearner(
+            method="ges", scoring_method="bic-g", backend="numpy"
+        )
+        learner_cpu.fit(chain_data_large)
+        adj_cpu = learner_cpu.adjacency_matrix
+
+        learner_gpu = CausalStructureLearner(
+            method="ges", scoring_method="bic-g", backend="torch", device="cuda"
+        )
+        learner_gpu.fit(chain_data_large)
+        adj_gpu = learner_gpu.adjacency_matrix
+
+        assert_allclose(adj_cpu, adj_gpu)
+
+    def test_hillclimb_adjacency_cpu_gpu_match(self, chain_data_large) -> None:
+        """HillClimb produces same adjacency on CPU and GPU."""
+        learner_cpu = CausalStructureLearner(
+            method="hillclimb", scoring_method="bic-g", backend="numpy"
+        )
+        learner_cpu.fit(chain_data_large)
+        adj_cpu = learner_cpu.adjacency_matrix
+
+        learner_gpu = CausalStructureLearner(
+            method="hillclimb", scoring_method="bic-g", backend="torch", device="cuda"
+        )
+        learner_gpu.fit(chain_data_large)
+        adj_gpu = learner_gpu.adjacency_matrix
+
+        assert_allclose(adj_cpu, adj_gpu)
+
+    def test_pc_edges_cpu_gpu_match(self, chain_data_large) -> None:
+        """PC algorithm finds same edges on CPU and GPU."""
+        learner_cpu = CausalStructureLearner(
+            method="pc",
+            ci_test="pearsonr",
+            significance_level=0.01,
+            backend="numpy",
+        )
+        learner_cpu.fit(chain_data_large)
+        edges_cpu = {frozenset(e) for e in learner_cpu.edges}
+
+        learner_gpu = CausalStructureLearner(
+            method="pc",
+            ci_test="pearsonr",
+            significance_level=0.01,
+            backend="torch",
+            device="cuda",
+        )
+        learner_gpu.fit(chain_data_large)
+        edges_gpu = {frozenset(e) for e in learner_gpu.edges}
+
+        assert edges_cpu == edges_gpu
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
+class TestCausalCovarianceGPUConsistency:
+    """Verify CausalCovarianceEstimator GPU matches CPU."""
+
+    def test_observational_cov_cpu_gpu_match(self, chain_data_large) -> None:
+        """Observational covariance matches between numpy and torch/CUDA."""
+        est_cpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="numpy"
+        )
+        est_cpu.fit(chain_data_large)
+        cov_cpu = est_cpu.observational_covariance()
+
+        est_gpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="torch", device="cuda"
+        )
+        est_gpu.fit(chain_data_large)
+        cov_gpu = est_gpu.observational_covariance()
+
+        assert_allclose(cov_cpu, cov_gpu, atol=1e-6)
+
+    def test_interventional_cov_cpu_gpu_structure_match(self, chain_data_large) -> None:
+        """Interventional covariance has same zero-pattern on CPU and GPU.
+
+        The exact values may differ slightly because interventional covariance
+        relies on internal simulation with different random states across backends.
+        We verify structural properties are preserved.
+        """
+        est_cpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="numpy"
+        )
+        est_cpu.fit(chain_data_large)
+        int_cpu = est_cpu.interventional_covariance({"X": 0.0})
+
+        est_gpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="torch", device="cuda"
+        )
+        est_gpu.fit(chain_data_large)
+        int_gpu = est_gpu.interventional_covariance({"X": 0.0})
+
+        names = est_cpu.variable_names
+        x_idx = names.index("X")
+        assert_allclose(int_cpu[x_idx, :], 0.0, atol=1e-10)
+        assert_allclose(int_gpu[x_idx, :], 0.0, atol=1e-10)
+        assert_allclose(int_cpu[:, x_idx], 0.0, atol=1e-10)
+        assert_allclose(int_gpu[:, x_idx], 0.0, atol=1e-10)
+
+        assert int_gpu.shape == int_cpu.shape
+        assert_allclose(int_gpu, int_gpu.T, atol=1e-10)
+
+    def test_decomposition_cpu_gpu_match(self, chain_data_large) -> None:
+        """Structural decomposition matches between backends."""
+        est_cpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="numpy"
+        )
+        est_cpu.fit(chain_data_large)
+        decomp_cpu = est_cpu.decompose()
+
+        est_gpu = CausalCovarianceEstimator(
+            edges=[("X", "Y"), ("Y", "Z")], backend="torch", device="cuda"
+        )
+        est_gpu.fit(chain_data_large)
+        decomp_gpu = est_gpu.decompose()
+
+        assert_allclose(decomp_cpu.B, decomp_gpu.B, atol=1e-6)
+        assert_allclose(decomp_cpu.omega, decomp_gpu.omega, atol=1e-6)
+        assert_allclose(decomp_cpu.sigma, decomp_gpu.sigma, atol=1e-6)

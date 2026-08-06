@@ -7,6 +7,7 @@ Validates that:
 - All sklearn transformers work in a Pipeline (compose with StandardScaler, PCA)
 - fit → transform → verify output shape and values
 - wrap_sklearn_estimator wraps GaussianProcessRegressor correctly
+- GPU: SPTTransformer and DiversityFeature work with PyTorch CUDA tensors
 """
 
 from __future__ import annotations
@@ -28,6 +29,13 @@ from quantspt.integrations.sklearn import (
 )
 from quantspt.ml._protocols import GeneratingFunctionModel
 from quantspt.ml.wrappers import wrap_sklearn_estimator
+
+try:
+    import torch
+
+    CUDA_AVAILABLE = torch.cuda.is_available()
+except ImportError:
+    CUDA_AVAILABLE = False
 
 
 @pytest.fixture
@@ -280,3 +288,102 @@ class TestFitTransformShapes:
         feat = ExcessGrowthFeature(window=20, min_periods=10)
         result = feat.fit_transform(prices)
         assert result.shape == (100, 1)
+
+
+# ---------------------------------------------------------------------------
+# GPU/CPU consistency for sklearn bridge (PyTorch tensors)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
+class TestSPTTransformerGPU:
+    """SPTTransformer works with PyTorch GPU tensors directly."""
+
+    def test_transform_cuda_tensor(self, rng) -> None:
+        """SPTTransformer produces valid weights from CUDA tensors."""
+        prices_np = rng.uniform(50, 200, (100, 5)).astype(np.float64)
+        prices_cuda = torch.tensor(prices_np, device="cuda", dtype=torch.float64)
+
+        transformer = SPTTransformer()
+        result = transformer.transform(prices_cuda)
+
+        assert result.device.type == "cuda"
+        assert result.shape == (100, 5)
+        sums = result.sum(dim=1)
+        assert torch.allclose(sums, torch.ones(100, device="cuda", dtype=torch.float64))
+
+    def test_gpu_matches_cpu(self, rng) -> None:
+        """GPU and CPU produce identical weights."""
+        prices_np = rng.uniform(50, 200, (50, 5)).astype(np.float64)
+        prices_cuda = torch.tensor(prices_np, device="cuda", dtype=torch.float64)
+
+        transformer = SPTTransformer()
+        result_cpu = transformer.transform(prices_np)
+        result_gpu = transformer.transform(prices_cuda).cpu().numpy()
+
+        assert_allclose(result_cpu, result_gpu, atol=1e-12)
+
+    def test_min_weight_filter_gpu(self) -> None:
+        """min_weight filtering works on GPU."""
+        prices = torch.tensor([[1000.0, 1.0, 1.0]], device="cuda", dtype=torch.float64)
+        transformer = SPTTransformer(min_weight=0.01)
+        result = transformer.transform(prices)
+
+        assert result.device.type == "cuda"
+        assert result[0, 1].item() == 0.0
+        assert result[0, 2].item() == 0.0
+        assert abs(result.sum().item() - 1.0) < 1e-10
+
+    def test_fit_transform_cuda(self, rng) -> None:
+        """fit_transform works end-to-end with CUDA tensor."""
+        prices_cuda = torch.tensor(
+            rng.uniform(50, 200, (80, 5)), device="cuda", dtype=torch.float64
+        )
+        transformer = SPTTransformer()
+        result = transformer.fit_transform(prices_cuda)
+        assert result.device.type == "cuda"
+        assert result.shape == (80, 5)
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not CUDA_AVAILABLE, reason="CUDA not available")
+class TestDiversityFeatureGPU:
+    """DiversityFeature works with PyTorch GPU tensors."""
+
+    def test_diversity_cuda_tensor(self, rng) -> None:
+        """DiversityFeature produces valid output on CUDA tensors."""
+        alpha = rng.exponential(size=(50, 5))
+        weights_np = (alpha / alpha.sum(axis=1, keepdims=True)).astype(np.float64)
+        weights_cuda = torch.tensor(weights_np, device="cuda", dtype=torch.float64)
+
+        feat = DiversityFeature(p=0.5, from_weights=True)
+        result = feat.transform(weights_cuda)
+
+        assert result.device.type == "cuda"
+        assert result.shape == (50, 1)
+        assert torch.all(result >= 1.0 - 1e-10)
+
+    def test_diversity_gpu_matches_cpu(self, rng) -> None:
+        """GPU diversity matches CPU diversity."""
+        alpha = rng.exponential(size=(30, 5))
+        weights_np = (alpha / alpha.sum(axis=1, keepdims=True)).astype(np.float64)
+        weights_cuda = torch.tensor(weights_np, device="cuda", dtype=torch.float64)
+
+        feat = DiversityFeature(p=0.5, from_weights=True)
+        result_cpu = feat.transform(weights_np)
+        result_gpu = feat.transform(weights_cuda).cpu().numpy()
+
+        assert_allclose(result_cpu, result_gpu, atol=1e-10)
+
+    def test_diversity_from_prices_gpu(self, rng) -> None:
+        """DiversityFeature(from_weights=False) works on CUDA price tensor."""
+        prices_cuda = torch.tensor(
+            rng.uniform(50, 200, (60, 5)), device="cuda", dtype=torch.float64
+        )
+        feat = DiversityFeature(p=0.5, from_weights=False)
+        result = feat.transform(prices_cuda)
+
+        assert result.device.type == "cuda"
+        assert result.shape == (60, 1)
+        assert torch.all(torch.isfinite(result))

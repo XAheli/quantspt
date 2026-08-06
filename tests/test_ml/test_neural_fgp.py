@@ -423,21 +423,171 @@ class TestProtocolIntegration:
 
 
 # ---------------------------------------------------------------------------
+# GPU/CPU Consistency Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.gpu
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
+class TestNeuralFGPGPUConsistency:
+    """Verify GPU and CPU produce identical results for NeuralFGP."""
+
+    @pytest.fixture
+    def trained_model_cpu(
+        self, synthetic_market_data: tuple[np.ndarray, np.ndarray]
+    ) -> NeuralFGP:
+        """Train a NeuralFGP on CPU with fixed seed."""
+        mw, ret = synthetic_market_data
+        config = NeuralFGPConfig(
+            hidden_dims=[32, 16],
+            epochs=20,
+            train_window=50,
+            eval_window=10,
+            learning_rate=5e-3,
+            seed=42,
+            device="cpu",
+        )
+        model = NeuralFGP(n_assets=5, config=config)
+        model.fit(mw, returns=ret)
+        return model
+
+    @pytest.fixture
+    def trained_model_gpu(
+        self, synthetic_market_data: tuple[np.ndarray, np.ndarray]
+    ) -> NeuralFGP:
+        """Train a NeuralFGP on GPU with fixed seed."""
+        mw, ret = synthetic_market_data
+        config = NeuralFGPConfig(
+            hidden_dims=[32, 16],
+            epochs=20,
+            train_window=50,
+            eval_window=10,
+            learning_rate=5e-3,
+            seed=42,
+            device="cuda",
+        )
+        model = NeuralFGP(n_assets=5, config=config)
+        model.fit(mw, returns=ret)
+        return model
+
+    def test_generating_function_cpu_gpu_match(
+        self,
+        trained_model_cpu: NeuralFGP,
+        trained_model_gpu: NeuralFGP,
+        rng: np.random.Generator,
+    ) -> None:
+        """G_θ(μ) must match to float64 precision (Category A evaluation).
+
+        generating_function() promotes model to float64 before evaluation,
+        so CPU and GPU must agree to ~1e-12 since all arithmetic is in
+        IEEE 754 double precision on both devices.
+        """
+        for _ in range(20):
+            alpha = rng.exponential(size=5)
+            mu = alpha / alpha.sum()
+            val_cpu = trained_model_cpu.generating_function(mu)
+            val_gpu = trained_model_gpu.generating_function(mu)
+            assert (
+                abs(val_cpu - val_gpu) < 1e-12
+            ), f"CPU={val_cpu:.15e}, GPU={val_gpu:.15e}"
+
+    def test_weights_cpu_gpu_match(
+        self,
+        trained_model_cpu: NeuralFGP,
+        trained_model_gpu: NeuralFGP,
+        rng: np.random.Generator,
+    ) -> None:
+        """Portfolio weights must match to float64 precision (Category A).
+
+        weights() calls log_gradient() which promotes to float64.
+        Fernholz weight formula involves cancellation (π_i - μ_i terms)
+        that requires full double precision.
+        """
+        for _ in range(10):
+            alpha = rng.exponential(size=5)
+            mu = alpha / alpha.sum()
+            w_cpu = trained_model_cpu.weights(mu)
+            w_gpu = trained_model_gpu.weights(mu)
+            np.testing.assert_allclose(w_cpu, w_gpu, atol=1e-12)
+
+    def test_hessian_cpu_gpu_match(
+        self,
+        trained_model_cpu: NeuralFGP,
+        trained_model_gpu: NeuralFGP,
+        rng: np.random.Generator,
+    ) -> None:
+        """Hessian must match to float64 precision (Category A).
+
+        D²G feeds into drift process computation where second-order
+        differences amplify precision loss. Promotion to float64
+        guarantees identical results on both devices.
+        """
+        alpha = rng.exponential(size=5)
+        mu = alpha / alpha.sum()
+        H_cpu = trained_model_cpu.hessian(mu)
+        H_gpu = trained_model_gpu.hessian(mu)
+        np.testing.assert_allclose(H_cpu, H_gpu, atol=1e-12)
+
+    def test_icnn_forward_cpu_gpu_match(self, rng: np.random.Generator) -> None:
+        """Raw ICNN forward pass in float32 (Category B: training context).
+
+        During training, float32 is used for GPU throughput. The ICNN uses
+        softplus (log(1+exp(x))) which involves transcendental functions.
+        CUDA transcendentals are faithfully rounded to 1-2 ULP but not
+        correctly rounded, yielding ~1.2e-7 relative error per operation.
+        With output magnitudes ~170 and multiple chained softplus calls,
+        absolute error of 5e-5 corresponds to ~3 ULP — within hardware spec.
+        SGD noise (~1e-2) dominates this by 3 orders of magnitude.
+        """
+        torch.manual_seed(42)
+        icnn = InputConvexNN(n_inputs=5, hidden_dims=[32, 16], activation="softplus")
+
+        alpha = rng.exponential(size=(20, 5))
+        mu = (alpha / alpha.sum(axis=1, keepdims=True)).astype(np.float32)
+        x = torch.tensor(mu)
+
+        icnn_cpu = icnn.to("cpu")
+        icnn_cpu.eval()
+        with torch.no_grad():
+            out_cpu = icnn_cpu(x).numpy()
+
+        icnn_gpu = icnn.to("cuda")
+        icnn_gpu.eval()
+        with torch.no_grad():
+            out_gpu = icnn_gpu(x.to("cuda")).cpu().numpy()
+
+        np.testing.assert_allclose(out_cpu, out_gpu, atol=5e-5)
+
+    def test_training_loss_converges_on_gpu(
+        self, synthetic_market_data: tuple[np.ndarray, np.ndarray]
+    ) -> None:
+        """Training on GPU converges (loss decreases)."""
+        mw, ret = synthetic_market_data
+        config = NeuralFGPConfig(
+            hidden_dims=[32, 16],
+            epochs=50,
+            train_window=50,
+            eval_window=10,
+            learning_rate=5e-3,
+            seed=42,
+            device="cuda",
+        )
+        model = NeuralFGP(n_assets=5, config=config)
+        model.fit(mw, returns=ret)
+        losses = model.training_history["loss"]
+        assert (
+            losses[-1] <= losses[0]
+        ), f"GPU training loss did not decrease: {losses[0]:.6f} → {losses[-1]:.6f}"
+
+
+# ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
 
 
 def _icnn_f64(icnn: InputConvexNN, x: torch.Tensor) -> torch.Tensor:
-    """Evaluate ICNN in float64."""
-    import torch.nn.functional as F
-
-    z = icnn._activation(F.linear(x, icnn._W0.weight.double(), icnn._W0.bias.double()))
-    for Wz_k, Ux_k in zip(icnn._Wz, icnn._Ux, strict=False):
-        Wz_pos = torch.clamp(Wz_k.weight.double(), min=0.0)
-        Ux_pos = torch.clamp(Ux_k.weight.double(), min=0.0)
-        bias = Ux_k.bias.double() if Ux_k.bias is not None else None
-        z = icnn._activation(F.linear(z, Wz_pos) + F.linear(x, Ux_pos, bias))
-    w_pos = torch.clamp(icnn._w_out.weight.double(), min=0.0)
-    return F.linear(z, w_pos).squeeze(-1) + F.linear(
-        x, icnn._u_out.weight.double(), icnn._u_out.bias.double()
-    ).squeeze(-1)
+    """Evaluate ICNN in float64 by promoting weights (Category C boundary)."""
+    icnn.double()
+    result = icnn(x)
+    icnn.float()
+    return result

@@ -239,6 +239,16 @@ class InputConvexNN:
         self._module.to(device)
         return self
 
+    def double(self) -> InputConvexNN:
+        """Cast all parameters to float64 (for evaluation precision)."""
+        self._module.double()
+        return self
+
+    def float(self) -> InputConvexNN:
+        """Cast all parameters to float32 (restore after evaluation)."""
+        self._module.float()
+        return self
+
     def forward(self, x: Any) -> Any:
         """Compute f(x) — the convex function. G_θ = −f + offset."""
         import torch.nn.functional as F
@@ -566,50 +576,75 @@ class NeuralFGP:
     # ------------------------------------------------------------------
 
     def generating_function(self, mu: NDArray[np.float64]) -> float:
-        """Evaluate G_θ(μ) = −f(μ) + offset."""
+        """Evaluate G_θ(μ) = −f(μ) + offset.
+
+        Evaluates in float64 regardless of training dtype because
+        downstream weight/drift computations (relative_covariance,
+        excess_growth_rate) suffer catastrophic cancellation in float32.
+        This is the Category C boundary: training is float32, evaluation
+        promotes to float64.
+        """
         import torch
 
         if not self._fitted:
             raise RuntimeError("Model must be fitted before evaluation.")
         net = self._network
         assert net is not None
+        net.double()
         mu_t = torch.tensor(
-            mu, dtype=torch.float32, device=self._config.device
+            mu, dtype=torch.float64, device=self._config.device
         ).unsqueeze(0)
         with torch.no_grad():
             f_val = net(mu_t).squeeze().item()
+        net.float()
         return max(-f_val + self._config.positivity_offset, 1e-10)
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
-        """∇ log G_θ(μ) via autograd."""
+        """∇ log G_θ(μ) via autograd.
+
+        Evaluates in float64: the gradient feeds into Fernholz weight
+        computation (π_i = μ_i D_i log G + μ_i), where catastrophic
+        cancellation occurs when weights are close to market weights.
+        """
         import torch
 
         if not self._fitted:
             raise RuntimeError("Model must be fitted before evaluation.")
         net = self._network
         assert net is not None
+        net.double()
         mu_t = torch.tensor(
-            mu, dtype=torch.float32, device=self._config.device
+            mu, dtype=torch.float64, device=self._config.device
         ).requires_grad_(True)
         f_val = net(mu_t.unsqueeze(0)).squeeze(0)
         G_val = torch.clamp(-f_val + self._config.positivity_offset, min=1e-8)
         log_G = torch.log(G_val)
         (grad,) = torch.autograd.grad(log_G, mu_t)
-        return grad.detach().cpu().numpy().astype(np.float64)
+        net.float()
+        return grad.detach().cpu().numpy()
 
     def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
-        """D²G_θ(μ) via autograd (float64 precision)."""
+        """D²G_θ(μ) via autograd.
+
+        Float64 required: the Hessian D²G feeds into drift process
+        computation (γ* = ½ Σ (π_i - μ_i)(π_j - μ_j) τ_{ij}),
+        where second-order differences amplify any precision loss.
+        """
         import torch
 
         if not self._fitted:
             raise RuntimeError("Model must be fitted before evaluation.")
+        net = self._network
+        assert net is not None
+        net.double()
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._config.device)
 
         def G_func(x: torch.Tensor) -> torch.Tensor:
-            return -_forward_f64(self._network, x) + self._config.positivity_offset
+            return -net(x.unsqueeze(0)).squeeze() + self._config.positivity_offset
 
         H = torch.autograd.functional.hessian(G_func, mu_t)
-        H_np = H.detach().cpu().numpy().astype(np.float64)  # type: ignore[union-attr]
+        net.float()
+        H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
         return (H_np + H_np.T) / 2.0
 
     def weights(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -629,30 +664,6 @@ class NeuralFGP:
         return LearnedGeneratingFunction(
             self, name_str="NeuralFGP", n_assets=self._n_assets
         )
-
-
-def _forward_f64(network: Any, x: Any) -> Any:
-    """Evaluate network in float64 for Hessian precision."""
-    import torch.nn.functional as F
-
-    if isinstance(network, InputConvexNN):
-        z = network._activation(
-            F.linear(x, network._W0.weight.double(), network._W0.bias.double())
-        )
-        for Wz_k, Ux_k in zip(network._Wz, network._Ux, strict=False):
-            z = network._activation(
-                F.linear(z, Wz_k.weight.double(), None)
-                + F.linear(
-                    x,
-                    Ux_k.weight.double(),
-                    Ux_k.bias.double() if Ux_k.bias is not None else None,
-                )
-            )
-        return F.linear(z, network._w_out.weight.double(), None).squeeze(-1) + F.linear(
-            x, network._u_out.weight.double(), network._u_out.bias.double()
-        ).squeeze(-1)
-    else:
-        return network(x.float()).double()
 
 
 __all__ = ["InputConvexNN", "NeuralFGP", "NeuralFGPConfig"]

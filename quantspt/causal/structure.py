@@ -60,6 +60,12 @@ class CausalStructureLearner:
         Edges that must not appear in the learned graph.
     temporal_order : list of list of str or None
         Temporal tiers for time-ordering constraints.
+    backend : ``"numpy"`` | ``"torch"``
+        Computation backend for pgmpy.  ``"torch"`` enables GPU
+        acceleration for factor operations, CPDs, and sampling.
+    device : str or None
+        Device for the torch backend (``"cpu"`` or ``"cuda"``).
+        Only used when ``backend="torch"``.
     **kwargs
         Forwarded to the underlying pgmpy discovery constructor.
     """
@@ -77,6 +83,8 @@ class CausalStructureLearner:
         prior_edges: list[tuple[str, str]] | None = None,
         forbidden_edges: list[tuple[str, str]] | None = None,
         temporal_order: list[list[str]] | None = None,
+        backend: Literal["numpy", "torch"] = "numpy",
+        device: str | None = None,
         **kwargs: Any,
     ) -> None:
         require(method in _METHODS, f"method must be one of {_METHODS}, got {method!r}")
@@ -90,6 +98,8 @@ class CausalStructureLearner:
         self._prior_edges = prior_edges
         self._forbidden_edges = forbidden_edges
         self._temporal_order = temporal_order
+        self._backend = backend
+        self._device = device
         self._extra_kwargs = kwargs
 
         self._fitted = False
@@ -126,6 +136,7 @@ class CausalStructureLearner:
         df = self._to_dataframe(data, variable_names)
         self._variable_names = list(df.columns)
 
+        self._configure_backend()
         merged = {**self._extra_kwargs, **kwargs}
         discovery = self._build_discovery(merged)
         discovery.fit(df)
@@ -251,6 +262,16 @@ class CausalStructureLearner:
             init_kwargs["expert_knowledge"] = expert
         init_kwargs.update(extra)
         return HillClimbSearch(**init_kwargs)
+
+    def _configure_backend(self) -> None:
+        """Set pgmpy's computation backend before running discovery."""
+        from pgmpy import config as pgmpy_config
+
+        if self._backend == "torch":
+            device = self._device or "cpu"
+            pgmpy_config.set_backend("torch", device=device)
+        else:
+            pgmpy_config.set_backend("numpy")
 
     def _build_expert_knowledge(self) -> Any | None:
         if (

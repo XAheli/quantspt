@@ -4,6 +4,9 @@ Provides TransformerMixin classes that extract Stochastic Portfolio Theory
 quantities (market weights, diversity measures, excess growth rates) as
 features for machine learning pipelines.
 
+Supports numpy arrays (default), pandas DataFrames, and PyTorch tensors
+(including CUDA tensors) for GPU-accelerated pipelines.
+
 Requires scikit-learn: ``pip install scikit-learn``
 """
 
@@ -16,6 +19,21 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from .._preconditions import require
+
+
+def _is_torch_tensor(X: Any) -> bool:
+    """Check if input is a PyTorch tensor without importing torch eagerly."""
+    return type(X).__module__.startswith("torch") and hasattr(X, "device")
+
+
+def _to_numpy(X: Any) -> NDArray[np.float64]:
+    """Convert input to numpy float64 array, handling torch tensors."""
+    if isinstance(X, pd.DataFrame):
+        return X.to_numpy(dtype=np.float64)
+    if _is_torch_tensor(X):
+        return X.detach().cpu().numpy().astype(np.float64)
+    return np.asarray(X, dtype=np.float64)
+
 
 __all__ = [
     "DiversityFeature",
@@ -93,26 +111,27 @@ class SPTTransformer:
 
     def transform(
         self,
-        X: NDArray[np.float64] | pd.DataFrame,
-    ) -> NDArray[np.float64]:
+        X: Any,
+    ) -> Any:
         """Transform prices to market weights.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
             Price matrix where each row is a time step and each column
-            is an asset.
+            is an asset.  Accepts numpy arrays, pandas DataFrames, or
+            PyTorch tensors (including CUDA tensors).
 
         Returns
         -------
-        ndarray of shape (n_samples, n_features)
+        ndarray or Tensor of shape (n_samples, n_features)
             Market-capitalization weights at each time step.
+            Returns the same type/device as the input.
         """
-        arr: NDArray[np.float64] = np.asarray(
-            X.to_numpy(dtype=np.float64) if isinstance(X, pd.DataFrame) else X,
-            dtype=np.float64,
-        )
+        if _is_torch_tensor(X):
+            return self._transform_torch(X)
 
+        arr: NDArray[np.float64] = _to_numpy(X)
         require(arr.ndim == 2, f"Input must be 2-D, got ndim={arr.ndim}")
 
         row_sums = arr.sum(axis=1, keepdims=True)
@@ -131,11 +150,34 @@ class SPTTransformer:
 
         return weights
 
+    def _transform_torch(self, X: Any) -> Any:
+        """GPU-native transform using PyTorch operations."""
+        import torch
+
+        require(X.ndim == 2, f"Input must be 2-D, got ndim={X.ndim}")
+
+        row_sums = X.sum(dim=1, keepdim=True)
+        row_sums = torch.where(row_sums > 0, row_sums, torch.ones_like(row_sums))
+        weights = X / row_sums
+
+        if self.min_weight > 0:
+            weights = torch.where(
+                weights >= self.min_weight, weights, torch.zeros_like(weights)
+            )
+            if self.normalize:
+                new_sums = weights.sum(dim=1, keepdim=True)
+                new_sums = torch.where(
+                    new_sums > 0, new_sums, torch.ones_like(new_sums)
+                )
+                weights = weights / new_sums
+
+        return weights
+
     def fit_transform(
         self,
-        X: NDArray[np.float64] | pd.DataFrame,
+        X: Any,
         y: Any = None,
-    ) -> NDArray[np.float64]:
+    ) -> Any:
         """Fit and transform in one step."""
         return self.fit(X, y).transform(X)
 
@@ -197,25 +239,25 @@ class DiversityFeature:
 
     def transform(
         self,
-        X: NDArray[np.float64] | pd.DataFrame,
-    ) -> NDArray[np.float64]:
+        X: Any,
+    ) -> Any:
         """Extract diversity feature from price or weight matrix.
 
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
             Price matrix or weight matrix (if from_weights=True).
+            Accepts numpy arrays, pandas DataFrames, or PyTorch tensors.
 
         Returns
         -------
-        ndarray of shape (n_samples, 1)
+        ndarray or Tensor of shape (n_samples, 1)
             Diversity index D_p at each time step.
         """
-        arr: NDArray[np.float64] = np.asarray(
-            X.to_numpy(dtype=np.float64) if isinstance(X, pd.DataFrame) else X,
-            dtype=np.float64,
-        )
+        if _is_torch_tensor(X):
+            return self._transform_torch(X)
 
+        arr: NDArray[np.float64] = _to_numpy(X)
         require(arr.ndim == 2, f"Input must be 2-D, got ndim={arr.ndim}")
 
         if self.from_weights:
@@ -229,12 +271,29 @@ class DiversityFeature:
         diversity = np.sum(weights**self.p, axis=1) ** (1.0 / self.p)
         return diversity.reshape(-1, 1)
 
+    def _transform_torch(self, X: Any) -> Any:
+        """GPU-native diversity computation using PyTorch."""
+        import torch
+
+        require(X.ndim == 2, f"Input must be 2-D, got ndim={X.ndim}")
+
+        if self.from_weights:
+            weights = X
+        else:
+            row_sums = X.sum(dim=1, keepdim=True)
+            row_sums = torch.where(row_sums > 0, row_sums, torch.ones_like(row_sums))
+            weights = X / row_sums
+
+        weights = torch.clamp(weights, min=1e-15)
+        diversity = torch.sum(weights**self.p, dim=1) ** (1.0 / self.p)
+        return diversity.unsqueeze(-1)
+
     def fit_transform(
         self,
-        X: NDArray[np.float64] | pd.DataFrame,
+        X: Any,
         y: Any = None,
         **kwargs: Any,
-    ) -> NDArray[np.float64]:
+    ) -> Any:
         """Fit and transform."""
         return self.fit(X, y).transform(X)
 
