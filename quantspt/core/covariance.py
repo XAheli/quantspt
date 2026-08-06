@@ -14,12 +14,15 @@ Mathematical References
 
 from __future__ import annotations
 
+from typing import Protocol, runtime_checkable
+
 import numpy as np
 from numpy.typing import NDArray
 
 from .._preconditions import require
 
 __all__ = [
+    "CovarianceRateProcess",
     "non_degeneracy_bounds",
     "portfolio_covariance_vector",
     "portfolio_variance",
@@ -28,6 +31,127 @@ __all__ = [
     "tau_diagonal",
     "verify_non_degeneracy",
 ]
+
+
+@runtime_checkable
+class CovarianceRateProcess(Protocol):
+    r"""Protocol for time-varying covariance rate processes.
+
+    Defines the interface for objects that provide an instantaneous
+    covariance rate matrix a(t) at any point in time. Implementations
+    may be based on constant matrices, rolling estimates, model-implied
+    rates, or stochastic volatility processes.
+
+    The covariance rate a_{ij}(t) satisfies:
+    d⟨log X_i, log X_j⟩(t) = a_{ij}(t) dt
+
+    Implementers must return a symmetric positive semi-definite matrix.
+    """
+
+    def covariance_at(self, t: float) -> NDArray[np.float64]:
+        """Return the covariance rate matrix at time t.
+
+        Parameters
+        ----------
+        t : float
+            Time point.
+
+        Returns
+        -------
+        ndarray of shape (n, n)
+            Symmetric PSD covariance rate matrix.
+        """
+        ...
+
+    def n_assets(self) -> int:
+        """Number of assets in the covariance matrix."""
+        ...
+
+
+class ConstantCovarianceRate:
+    r"""Constant (time-homogeneous) covariance rate process.
+
+    Parameters
+    ----------
+    a : ndarray of shape (n, n)
+        Fixed covariance rate matrix.
+    """
+
+    def __init__(self, a: NDArray[np.float64]) -> None:
+        require(a.ndim == 2, f"Covariance must be 2-D, got shape {a.shape}")
+        require(a.shape[0] == a.shape[1], "Covariance must be square")
+        self._a = a
+
+    def covariance_at(self, t: float) -> NDArray[np.float64]:
+        """Return constant covariance matrix regardless of t."""
+        return self._a.copy()
+
+    def n_assets(self) -> int:
+        """Number of assets."""
+        return self._a.shape[0]
+
+
+class RollingCovarianceRate:
+    r"""Time-varying covariance rate from rolling window estimation.
+
+    Stores pre-computed covariance matrices at discrete time points
+    and interpolates for intermediate queries.
+
+    Parameters
+    ----------
+    times : ndarray of shape (T,)
+        Time points at which covariance was estimated.
+    covariances : ndarray of shape (T, n, n)
+        Covariance rate matrices at each time point.
+    interpolation : str
+        ``'nearest'`` (default) or ``'linear'``.
+    """
+
+    def __init__(
+        self,
+        times: NDArray[np.float64],
+        covariances: NDArray[np.float64],
+        interpolation: str = "nearest",
+    ) -> None:
+        require(times.ndim == 1, f"times must be 1-D, got shape {times.shape}")
+        require(
+            covariances.ndim == 3,
+            f"covariances must be 3-D, got shape {covariances.shape}",
+        )
+        require(
+            len(times) == covariances.shape[0],
+            f"Length mismatch: {len(times)} times, {covariances.shape[0]} matrices",
+        )
+        require(
+            interpolation in ("nearest", "linear"),
+            f"interpolation must be 'nearest' or 'linear', got '{interpolation}'",
+        )
+        self._times = times
+        self._covariances = covariances
+        self._interpolation = interpolation
+
+    def covariance_at(self, t: float) -> NDArray[np.float64]:
+        """Retrieve or interpolate covariance at time t."""
+        if self._interpolation == "nearest":
+            idx = int(np.argmin(np.abs(self._times - t)))
+            result: NDArray[np.float64] = self._covariances[idx]
+            return result
+        else:
+            idx = int(np.searchsorted(self._times, t))
+            if idx == 0:
+                return self._covariances[0].copy()
+            if idx >= len(self._times):
+                return self._covariances[-1].copy()
+            t0, t1 = self._times[idx - 1], self._times[idx]
+            alpha = (t - t0) / (t1 - t0)
+            result = (1.0 - alpha) * self._covariances[
+                idx - 1
+            ] + alpha * self._covariances[idx]
+            return result
+
+    def n_assets(self) -> int:
+        """Number of assets."""
+        return self._covariances.shape[1]
 
 
 def relative_covariance(

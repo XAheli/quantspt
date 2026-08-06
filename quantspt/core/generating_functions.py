@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 __all__ = [
+    "AutoDiffGeneratingFunction",
     "CustomGenerator",
     "DiversityGenerator",
     "EntropyGenerator",
@@ -578,3 +579,169 @@ def drift_process(
     H = G.hessian(mu)
     mu_outer = np.outer(mu, mu)
     return -0.5 / G_val * float(np.sum(H * tau_mu * mu_outer))
+
+
+class AutoDiffGeneratingFunction(GeneratingFunction):
+    r"""Generating function with automatic differentiation for derivatives.
+
+    Uses JAX or finite differences to compute the log-gradient and
+    Hessian of an arbitrary user-supplied function G(μ), avoiding the
+    need for hand-derived analytical formulas.
+
+    When JAX is available, uses exact autodiff (``jax.grad`` / ``jax.hessian``).
+    Falls back to central finite differences otherwise.
+
+    Parameters
+    ----------
+    func : callable
+        G(μ) → float. Must be C² and positive on the open simplex.
+    name_str : str
+        Display name.
+    backend : str
+        ``'auto'`` (try JAX, fall back to finite diff), ``'jax'``,
+        or ``'finite_diff'``.
+    h : float
+        Step size for finite differences (only used when backend is
+        ``'finite_diff'`` or JAX is unavailable).
+
+    Examples
+    --------
+    >>> def my_G(mu):
+    ...     return float(np.sum(mu ** 0.5))
+    >>> gen = AutoDiffGeneratingFunction(my_G, name_str="sqrt_sum")
+    >>> mu = np.array([0.3, 0.3, 0.4])
+    >>> gen(mu)  # evaluates G(μ)
+    1.7...
+    """
+
+    def __init__(
+        self,
+        func: Callable[[NDArray[np.float64]], float],
+        name_str: str = "AutoDiff",
+        backend: str = "auto",
+        h: float = 1e-7,
+    ) -> None:
+        require(
+            backend in ("auto", "jax", "finite_diff"),
+            f"backend must be 'auto', 'jax', or 'finite_diff', got '{backend}'",
+        )
+        self._func = func
+        self._name = name_str
+        self._h = h
+        self._backend = backend
+        self._use_jax = self._resolve_backend(backend)
+
+    def _resolve_backend(self, backend: str) -> bool:
+        """Determine whether to use JAX."""
+        if backend == "finite_diff":
+            return False
+        if backend == "jax":
+            try:
+                import jax
+
+                return True
+            except ImportError as exc:
+                raise ImportError(
+                    "JAX requested but not installed. "
+                    "Install with: pip install quantspt[gpu]"
+                ) from exc
+        try:
+            import jax  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def __call__(self, mu: NDArray[np.float64]) -> float:
+        """Evaluate G(μ)."""
+        return float(self._func(mu))
+
+    def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        r"""Compute ∇ log G(μ) via autodiff or finite differences."""
+        if self._use_jax:
+            return self._log_gradient_jax(mu)
+        return self._log_gradient_fd(mu)
+
+    def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        r"""Compute Hessian D²G(μ) via autodiff or finite differences."""
+        if self._use_jax:
+            return self._hessian_jax(mu)
+        return self._hessian_fd(mu)
+
+    def _log_gradient_jax(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Log-gradient via JAX autodiff."""
+        import jax
+        import jax.numpy as jnp
+
+        def log_G(x: jnp.ndarray) -> jnp.ndarray:  # type: ignore[name-defined]
+            return jnp.log(self._func(x))
+
+        grad_fn = jax.grad(log_G)
+        result = grad_fn(jnp.array(mu, dtype=jnp.float64))
+        return np.asarray(result, dtype=np.float64)
+
+    def _hessian_jax(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Hessian via JAX autodiff."""
+        import jax
+        import jax.numpy as jnp
+
+        def G_fn(x: jnp.ndarray) -> jnp.ndarray:  # type: ignore[name-defined]
+            return self._func(x)
+
+        hess_fn = jax.hessian(G_fn)
+        result = hess_fn(jnp.array(mu, dtype=jnp.float64))
+        return np.asarray(result, dtype=np.float64)
+
+    def _log_gradient_fd(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Log-gradient via central finite differences."""
+        n = len(mu)
+        grad = np.zeros(n)
+        for k in range(n):
+            mu_plus = mu.copy()
+            mu_plus[k] += self._h
+            mu_minus = mu.copy()
+            mu_minus[k] -= self._h
+            grad[k] = (np.log(self._func(mu_plus)) - np.log(self._func(mu_minus))) / (
+                2 * self._h
+            )
+        return grad
+
+    def _hessian_fd(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Hessian via second-order finite differences."""
+        n = len(mu)
+        H = np.zeros((n, n))
+        G0 = self._func(mu)
+        h = self._h
+        for i in range(n):
+            for j in range(i, n):
+                if i == j:
+                    mu_p = mu.copy()
+                    mu_p[i] += h
+                    mu_m = mu.copy()
+                    mu_m[i] -= h
+                    H[i, i] = (self._func(mu_p) - 2 * G0 + self._func(mu_m)) / h**2
+                else:
+                    mu_pp = mu.copy()
+                    mu_pp[i] += h
+                    mu_pp[j] += h
+                    mu_pm = mu.copy()
+                    mu_pm[i] += h
+                    mu_pm[j] -= h
+                    mu_mp = mu.copy()
+                    mu_mp[i] -= h
+                    mu_mp[j] += h
+                    mu_mm = mu.copy()
+                    mu_mm[i] -= h
+                    mu_mm[j] -= h
+                    H[i, j] = (
+                        self._func(mu_pp)
+                        - self._func(mu_pm)
+                        - self._func(mu_mp)
+                        + self._func(mu_mm)
+                    ) / (4 * h**2)
+                    H[j, i] = H[i, j]
+        return H
