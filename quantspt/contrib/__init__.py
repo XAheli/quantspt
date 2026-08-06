@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 _PROVIDER_REGISTRY: dict[str, Any] = {}
 _PORTFOLIO_REGISTRY: dict[str, Any] = {}
 _MODEL_REGISTRY: dict[str, Any] = {}
+_GENERATING_FUNCTION_REGISTRY: dict[str, Any] = {}
 
 
 def register_data_provider(name: str) -> Callable[[type], type]:
@@ -57,6 +58,16 @@ def register_model(name: str) -> Callable[[type], type]:
     return decorator
 
 
+def register_generating_function(name: str) -> Callable[[type], type]:
+    """Decorator to register a generating function implementation."""
+
+    def decorator(cls: type) -> type:
+        _GENERATING_FUNCTION_REGISTRY[name] = cls
+        return cls
+
+    return decorator
+
+
 def discover_providers() -> dict[str, type]:
     """Discover all installed data providers via entry points."""
     providers = dict(_PROVIDER_REGISTRY)
@@ -81,6 +92,14 @@ def discover_models() -> dict[str, type]:
     return models
 
 
+def discover_generating_functions() -> dict[str, type]:
+    """Discover all registered generating function implementations."""
+    gfs = dict(_GENERATING_FUNCTION_REGISTRY)
+    for ep in entry_points(group="quantspt_generating_function"):
+        gfs[ep.name] = ep.load()
+    return gfs
+
+
 def list_providers() -> set[str]:
     """Return names of all discoverable data providers."""
     return set(discover_providers().keys())
@@ -96,14 +115,22 @@ def list_models() -> set[str]:
     return set(discover_models().keys())
 
 
+def list_generating_functions() -> set[str]:
+    """Return names of all discoverable generating functions."""
+    return set(discover_generating_functions().keys())
+
+
 __all__ = [
+    "discover_generating_functions",
     "discover_models",
     "discover_portfolios",
     "discover_providers",
+    "list_generating_functions",
     "list_models",
     "list_portfolios",
     "list_providers",
     "register_data_provider",
+    "register_generating_function",
     "register_model",
     "register_portfolio",
 ]
