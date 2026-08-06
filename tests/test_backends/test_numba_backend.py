@@ -7,13 +7,15 @@ equivalent, that JIT compilation doesn't change results, and edge cases
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 from numpy.testing import assert_allclose
 
 numba = pytest.importorskip("numba")
 
-from quantspt._backends.numba_backend import NumbaBackend
+from quantspt._backends.numba_backend import NumbaBackend, _require_numba
 from quantspt._backends.numpy_backend import NumpyBackend
 
 
@@ -363,3 +365,98 @@ class TestJITConsistency:
 class TestBackendName:
     def test_name(self, nb) -> None:
         assert nb.name == "numba"
+
+
+# ---------------------------------------------------------------------------
+# Import guard
+# ---------------------------------------------------------------------------
+
+
+class TestImportGuard:
+    def test_require_numba_raises_when_missing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """_require_numba raises ImportError when numba is unavailable."""
+        monkeypatch.setitem(sys.modules, "numba", None)
+        with pytest.raises(ImportError, match="quantspt\\[sim\\]"):
+            _require_numba()
+
+    def test_require_numba_succeeds(self) -> None:
+        """_require_numba returns the numba module when available."""
+        mod = _require_numba()
+        assert hasattr(mod, "njit")
+
+
+# ---------------------------------------------------------------------------
+# Varying array sizes (small, medium, large)
+# ---------------------------------------------------------------------------
+
+
+class TestVaryingArraySizes:
+    """Verify numba backend with small (2), medium (10), and large (50) arrays."""
+
+    @pytest.mark.parametrize("n", [2, 10, 50])
+    def test_excess_growth_rate_sizes(self, nb, npb, rng, n) -> None:
+        pi = rng.dirichlet(np.ones(n))
+        L = rng.standard_normal((n, n)) * 0.05
+        a = L @ L.T + np.eye(n) * 0.001
+        assert_allclose(
+            nb.excess_growth_rate(pi, a), npb.excess_growth_rate(pi, a), atol=1e-8
+        )
+
+    @pytest.mark.parametrize("n", [2, 10, 50])
+    def test_relative_covariance_sizes(self, nb, npb, rng, n) -> None:
+        pi = rng.dirichlet(np.ones(n))
+        L = rng.standard_normal((n, n)) * 0.05
+        a = L @ L.T + np.eye(n) * 0.001
+        assert_allclose(
+            nb.relative_covariance(a, pi), npb.relative_covariance(a, pi), atol=1e-8
+        )
+
+    @pytest.mark.parametrize("n", [2, 10, 50])
+    def test_covariance_shrinkage_sizes(self, nb, npb, rng, n) -> None:
+        returns = rng.standard_normal((max(n + 10, 60), n))
+        assert_allclose(
+            nb.covariance_shrinkage(returns, 0.3),
+            npb.covariance_shrinkage(returns, 0.3),
+            atol=1e-8,
+        )
+
+    @pytest.mark.parametrize("n", [1, 5, 20])
+    def test_simulate_gbm_paths_sizes(self, nb, rng, n) -> None:
+        x0 = np.ones(n) * 100.0
+        mu = np.ones(n) * 0.05
+        chol = np.eye(n) * 0.2
+        n_steps = 30
+        dw = rng.standard_normal((n_steps, n)) * np.sqrt(1 / 252)
+        paths = nb.simulate_gbm_paths(x0, mu, chol, 1 / 252, n_steps, dw)
+        assert paths.shape == (n_steps + 1, n)
+        assert np.all(paths > 0)
+        assert_allclose(paths[0], x0)
+
+    @pytest.mark.parametrize("n", [2, 10, 50])
+    def test_diversity_weights_sizes(self, nb, npb, rng, n) -> None:
+        mu = rng.dirichlet(np.ones(n))
+        assert_allclose(
+            nb.diversity_weights(mu, 0.5), npb.diversity_weights(mu, 0.5), atol=1e-10
+        )
+
+    @pytest.mark.parametrize("n", [2, 10, 50])
+    def test_portfolio_variance_sizes(self, nb, npb, rng, n) -> None:
+        pi = rng.dirichlet(np.ones(n))
+        L = rng.standard_normal((n, n)) * 0.05
+        a = L @ L.T + np.eye(n) * 0.001
+        assert_allclose(
+            nb.portfolio_variance(a, pi), npb.portfolio_variance(a, pi), atol=1e-10
+        )
+
+    @pytest.mark.parametrize("n", [2, 10])
+    def test_simulate_gbm_step_sizes(self, nb, rng, n) -> None:
+        x = np.ones(n) * 100.0
+        mu = np.ones(n) * 0.05
+        chol = np.eye(n) * 0.2
+        dt = 1 / 252
+        dw = rng.standard_normal(n) * np.sqrt(dt)
+        result = nb.simulate_gbm_step(x, mu, chol, dt, dw)
+        assert result.shape == (n,)
+        assert np.all(result > 0)

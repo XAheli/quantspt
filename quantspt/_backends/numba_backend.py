@@ -36,7 +36,7 @@ def _build_numba_functions() -> dict[str, Any]:
     njit = numba.njit
 
     @njit(cache=True)  # type: ignore[misc, untyped-decorator]
-    def _excess_growth_rate(pi: Any, a_diag: Any, a: Any) -> Any:
+    def _excess_growth_rate(pi: Any, a_diag: Any, a: Any) -> Any:  # pragma: no cover
         weighted_var = 0.0
         n = len(pi)
         for i in range(n):
@@ -50,7 +50,7 @@ def _build_numba_functions() -> dict[str, Any]:
         return 0.5 * (weighted_var - port_var)
 
     @njit(cache=True)  # type: ignore[misc, untyped-decorator]
-    def _relative_covariance(a: Any, pi: Any) -> Any:
+    def _relative_covariance(a: Any, pi: Any) -> Any:  # pragma: no cover
         n = len(pi)
         a_pi = np.zeros(n)
         for i in range(n):
@@ -68,7 +68,7 @@ def _build_numba_functions() -> dict[str, Any]:
         return tau
 
     @njit(cache=True)  # type: ignore[misc, untyped-decorator]
-    def _simulate_gbm_paths(
+    def _simulate_gbm_paths(  # pragma: no cover
         x0: Any,
         mu: Any,
         cholesky: Any,
@@ -96,7 +96,9 @@ def _build_numba_functions() -> dict[str, Any]:
         return paths
 
     @njit(cache=True)  # type: ignore[misc, untyped-decorator]
-    def _covariance_inner(returns: Any, n_obs: Any, n_assets: Any) -> Any:
+    def _covariance_inner(
+        returns: Any, n_obs: Any, n_assets: Any
+    ) -> Any:  # pragma: no cover
         mean = np.zeros(n_assets)
         for i in range(n_assets):
             s = 0.0
