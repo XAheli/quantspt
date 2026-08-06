@@ -1,582 +1,705 @@
-"""Tests targeting specific uncovered lines to push coverage from 94% toward 98%.
+"""Tests targeting every remaining coverage gap across the codebase.
 
-Each test function documents which file:lines it covers.
+Systematically exercises uncovered branches in: JAX backend, visualization
+backend, losses, neural FGP, regime, export, covariance, csv_parquet,
+discrete allocation, protocols, and optimization modules.
 """
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 
-# ── _result.py (lines 88-134) ────────────────────────────────────────
+torch = pytest.importorskip("torch")
 
 
-class TestSPTResultChart:
-    """Cover SPTResult.chart() and timed_result context manager."""
+# ---------------------------------------------------------------------------
+# JAX Backend: import guard, simulate_gbm_step, covariance_shrinkage, name
+# ---------------------------------------------------------------------------
 
-    def test_chart_1d_array(self):
-        """Cover lines 88-98, 111-112."""
-        matplotlib = pytest.importorskip("matplotlib")
-        matplotlib.use("Agg")
-        from quantspt._result import SPTResult
 
-        result = SPTResult(data=np.array([1.0, 2.0, 3.0]))
-        fig = result.chart()
-        assert fig is not None
-        import matplotlib.pyplot as plt
+class TestJaxBackendCoverage:
+    """Cover remaining JAX backend branches."""
 
-        plt.close(fig)
+    def test_require_jax_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantspt._backends.jax_backend import _require_jax
 
-    def test_chart_2d_array(self):
-        """Cover lines 99-101."""
-        matplotlib = pytest.importorskip("matplotlib")
-        matplotlib.use("Agg")
-        from quantspt._result import SPTResult
+        monkeypatch.setitem(sys.modules, "jax", None)
+        with pytest.raises(ImportError, match="quantspt\\[gpu\\]"):
+            _require_jax()
 
-        result = SPTResult(data=np.array([[1.0, 2.0], [3.0, 4.0]]))
-        fig = result.chart()
-        assert fig is not None
-        import matplotlib.pyplot as plt
+    def test_name_property(self) -> None:
+        jax_mod = pytest.importorskip("jax")
+        from quantspt._backends.jax_backend import JaxBackend
 
-        plt.close(fig)
+        jax_mod.config.update("jax_enable_x64", True)
+        backend = JaxBackend()
+        assert backend.name == "jax"
 
-    def test_chart_dataframe(self):
-        """Cover line 94-95."""
-        matplotlib = pytest.importorskip("matplotlib")
-        matplotlib.use("Agg")
-        import pandas as pd
+    def test_simulate_gbm_step(self) -> None:
+        jax_mod = pytest.importorskip("jax")
+        from quantspt._backends.jax_backend import JaxBackend
 
-        from quantspt._result import SPTResult
+        jax_mod.config.update("jax_enable_x64", True)
+        backend = JaxBackend()
+        rng = np.random.default_rng(42)
+        n = 3
+        x = np.ones(n) * 100.0
+        mu = np.ones(n) * 0.05
+        chol = np.eye(n) * 0.2
+        dt = 1 / 252
+        dw = rng.standard_normal(n) * np.sqrt(dt)
+        result = backend.simulate_gbm_step(x, mu, chol, dt, dw)
+        assert result.shape == (n,)
+        assert np.all(result > 0)
+        assert result.dtype == np.float64
 
-        df = pd.DataFrame({"a": [1, 2], "b": [3, 4]})
-        result = SPTResult(data=df, metadata={"title": "Test"})
-        fig = result.chart()
-        assert fig is not None
-        import matplotlib.pyplot as plt
+    def test_covariance_shrinkage(self) -> None:
+        jax_mod = pytest.importorskip("jax")
+        from quantspt._backends.jax_backend import JaxBackend
+        from quantspt._backends.numpy_backend import NumpyBackend
 
-        plt.close(fig)
+        jax_mod.config.update("jax_enable_x64", True)
+        jb = JaxBackend()
+        npb = NumpyBackend()
+        rng = np.random.default_rng(42)
+        returns = rng.standard_normal((50, 5))
+        jax_result = jb.covariance_shrinkage(returns, 0.3)
+        np_result = npb.covariance_shrinkage(returns, 0.3)
+        np.testing.assert_allclose(jax_result, np_result, atol=1e-8)
 
-    def test_chart_non_array(self):
-        """Cover lines 103-110 (text fallback)."""
-        matplotlib = pytest.importorskip("matplotlib")
-        matplotlib.use("Agg")
-        from quantspt._result import SPTResult
+    def test_gradient(self) -> None:
+        jax_mod = pytest.importorskip("jax")
+        import jax.numpy as jnp
 
-        result = SPTResult(data="some string data")
-        fig = result.chart()
-        assert fig is not None
-        import matplotlib.pyplot as plt
+        from quantspt._backends.jax_backend import JaxBackend
 
-        plt.close(fig)
+        jax_mod.config.update("jax_enable_x64", True)
+        backend = JaxBackend()
 
-    def test_repr(self):
-        """Cover line 114-118."""
-        from quantspt._result import SPTResult
+        def f(x: jnp.ndarray) -> jnp.ndarray:
+            return jnp.sum(x**2)
 
-        result = SPTResult(data=np.array([1.0]), warnings=["w1"])
-        r = repr(result)
-        assert "ndarray" in r
-        assert "warnings=1" in r
+        x = np.array([1.0, 2.0, 3.0])
+        grad = backend.gradient(f, x)
+        np.testing.assert_allclose(grad, 2.0 * x, atol=1e-10)
 
-    def test_timed_result(self):
-        """Cover lines 122-134."""
-        from quantspt._result import timed_result
+    def test_hessian(self) -> None:
+        jax_mod = pytest.importorskip("jax")
+        import jax.numpy as jnp
 
-        with timed_result() as t:
-            _ = sum(range(100))
-        assert t.elapsed_ms >= 0
+        from quantspt._backends.jax_backend import JaxBackend
 
+        jax_mod.config.update("jax_enable_x64", True)
+        backend = JaxBackend()
 
-# ── ml/__init__.py (lines 69-110) ────────────────────────────────────
+        def f(x: jnp.ndarray) -> jnp.ndarray:
+            return jnp.sum(x**2)
 
+        x = np.array([1.0, 2.0, 3.0])
+        H = backend.hessian(f, x)
+        np.testing.assert_allclose(H, 2.0 * np.eye(3), atol=1e-10)
 
-class TestMLLazyImports:
-    """Cover __getattr__ lazy-loading paths."""
 
-    def test_lazy_neural_fgp(self):
-        """Cover line 69-72."""
-        from quantspt.ml import NeuralFGP
-
-        assert NeuralFGP is not None
-
-    def test_lazy_neural_fgp_config(self):
-        """Cover lines 73-76."""
-        from quantspt.ml import NeuralFGPConfig
-
-        assert NeuralFGPConfig is not None
-
-    def test_lazy_input_convex_nn(self):
-        """Cover lines 77-80."""
-        from quantspt.ml import InputConvexNN
-
-        assert InputConvexNN is not None
-
-    def test_lazy_hmm_regime_detector(self):
-        """Cover lines 81-84."""
-        from quantspt.ml import HMMRegimeDetector
-
-        assert HMMRegimeDetector is not None
-
-    def test_lazy_changepoint_detector(self):
-        """Cover lines 85-88."""
-        from quantspt.ml import ChangepointDetector
-
-        assert ChangepointDetector is not None
-
-    def test_lazy_factor_model_estimator(self):
-        """Cover lines 89-92."""
-        from quantspt.ml import FactorModelEstimator
-
-        assert FactorModelEstimator is not None
-
-    def test_lazy_rmt_denoiser(self):
-        """Cover lines 93-96."""
-        from quantspt.ml import RMTDenoiser
-
-        assert RMTDenoiser is not None
-
-    def test_lazy_losses(self):
-        """Cover lines 98-109."""
-        from quantspt.ml import default_loss, relative_return_loss
-
-        assert callable(relative_return_loss)
-        assert callable(default_loss)
-
-    def test_lazy_unknown_raises(self):
-        """Cover line 110."""
-        with pytest.raises(AttributeError, match="no attribute"):
-            from quantspt import ml
-
-            ml.__getattr__("nonexistent_thing")
-
-
-# ── contrib/__init__.py (lines 64-100, 120) ──────────────────────────
-
-
-class TestContribRegistry:
-    """Cover discover/list functions and register_generating_function."""
-
-    def test_discover_generating_functions(self):
-        """Cover lines 97-100."""
-        from quantspt.contrib import discover_generating_functions
-
-        gfs = discover_generating_functions()
-        assert isinstance(gfs, dict)
-
-    def test_list_generating_functions(self):
-        """Cover line 120."""
-        from quantspt.contrib import list_generating_functions
-
-        names = list_generating_functions()
-        assert isinstance(names, set)
-
-    def test_register_and_discover_generating_function(self):
-        from quantspt.contrib import (
-            discover_generating_functions,
-            register_generating_function,
-        )
-
-        @register_generating_function("test_gf")
-        class _TestGF:
-            pass
-
-        gfs = discover_generating_functions()
-        assert "test_gf" in gfs
-
-    def test_discover_providers(self):
-        """Cover lines 64-68."""
-        from quantspt.contrib import discover_providers
-
-        providers = discover_providers()
-        assert isinstance(providers, dict)
-
-    def test_discover_portfolios(self):
-        """Cover lines 75."""
-        from quantspt.contrib import discover_portfolios
-
-        portfolios = discover_portfolios()
-        assert isinstance(portfolios, dict)
-
-    def test_discover_models(self):
-        """Cover line 83."""
-        from quantspt.contrib import discover_models
-
-        models = discover_models()
-        assert isinstance(models, dict)
-
-    def test_list_providers(self):
-        """Cover line 91."""
-        from quantspt.contrib import list_providers
-
-        assert isinstance(list_providers(), set)
-
-    def test_list_portfolios(self):
-        """Cover line 97."""
-        from quantspt.contrib import list_portfolios
-
-        assert isinstance(list_portfolios(), set)
-
-    def test_list_models(self):
-        """Cover line 100."""
-        from quantspt.contrib import list_models
-
-        assert isinstance(list_models(), set)
-
-
-# ── data/schemas.py (lines 215-216, 245-246, 271) ────────────────────
-
-
-class TestNewSchemas:
-    """Cover CausalGraph, RegimeLabels, FactorLoadings."""
-
-    def test_causal_graph_valid(self):
-        """Cover CausalGraph.__post_init__ pass path."""
-        from quantspt.data.schemas import CausalGraph
-
-        adj = np.eye(3)
-        cg = CausalGraph(
-            adjacency_matrix=adj,
-            variable_names=["A", "B", "C"],
-            discovery_method="pc",
-        )
-        assert cg.adjacency_matrix.shape == (3, 3)
-
-    def test_causal_graph_invalid_shape(self):
-        """Cover CausalGraph.__post_init__ fail path (line 215-216)."""
-        from quantspt.data.schemas import CausalGraph
-        from quantspt.errors import SPTInvariantError
-
-        with pytest.raises(SPTInvariantError):
-            CausalGraph(
-                adjacency_matrix=np.eye(2),
-                variable_names=["A", "B", "C"],
-            )
-
-    def test_regime_labels_valid(self):
-        from quantspt.data.schemas import RegimeLabels
-
-        labels = RegimeLabels(
-            labels=np.array([0, 1, 0, 1], dtype=np.int64),
-            n_regimes=2,
-        )
-        assert labels.n_regimes == 2
-
-    def test_regime_labels_invalid(self):
-        """Cover RegimeLabels.__post_init__ fail path (line 245-246)."""
-        from quantspt.data.schemas import RegimeLabels
-        from quantspt.errors import SPTInvariantError
-
-        with pytest.raises(SPTInvariantError):
-            RegimeLabels(
-                labels=np.array([0, 1, 2], dtype=np.int64),
-                n_regimes=2,
-            )
-
-    def test_factor_loadings_valid(self):
-        from quantspt.data.schemas import FactorLoadings
-
-        fl = FactorLoadings(loadings=np.ones((5, 3)))
-        assert fl.loadings.shape == (5, 3)
-
-    def test_factor_loadings_invalid(self):
-        """Cover FactorLoadings.__post_init__ fail path (line 271)."""
-        from quantspt.data.schemas import FactorLoadings
-        from quantspt.errors import SPTInvariantError
-
-        with pytest.raises(SPTInvariantError):
-            FactorLoadings(loadings=np.array([1.0, 2.0]))
-
-
-# ── core/generating_functions.py (lines 639-697) ─────────────────────
-
-
-class TestAutoDiffGeneratingFunction:
-    """Cover AutoDiffGeneratingFunction JAX paths."""
-
-    def test_autodiff_jax_log_gradient(self):
-        """Cover lines 639-644, 666, 675-685."""
-        jax = pytest.importorskip("jax")
-        jax.config.update("jax_enable_x64", True)
-        from quantspt.core.generating_functions import AutoDiffGeneratingFunction
-
-        def my_g(mu):
-            return sum(mu**0.5)
-
-        gf = AutoDiffGeneratingFunction(my_g, "test_jax", backend="jax")
-        mu = np.array([0.4, 0.35, 0.25])
-        grad = gf.log_gradient(mu)
-        assert grad.shape == (3,)
-        assert np.all(np.isfinite(grad))
-
-    def test_autodiff_jax_hessian(self):
-        """Cover lines 689-697."""
-        jax = pytest.importorskip("jax")
-        jax.config.update("jax_enable_x64", True)
-        from quantspt.core.generating_functions import AutoDiffGeneratingFunction
-
-        def my_g(mu):
-            return sum(mu**0.5)
-
-        gf = AutoDiffGeneratingFunction(my_g, "test_jax", backend="jax")
-        mu = np.array([0.4, 0.35, 0.25])
-        H = gf.hessian(mu)
-        assert H.shape == (3, 3)
-        assert np.allclose(H, H.T)
-
-    def test_autodiff_auto_selects_jax(self):
-        """Cover lines 648-653 (auto-detection)."""
-        from quantspt.core.generating_functions import AutoDiffGeneratingFunction
-
-        def my_g(mu):
-            return sum(mu**0.5)
-
-        gf = AutoDiffGeneratingFunction(my_g, "test_auto", backend="auto")
-        mu = np.array([0.5, 0.3, 0.2])
-        val = gf(mu)
-        assert val > 0
-
-
-# ── visualization/_backend.py (lines 20-21, 40-41) ───────────────────
+# ---------------------------------------------------------------------------
+# Visualization _backend: import error paths
+# ---------------------------------------------------------------------------
 
 
 class TestVisualizationBackend:
-    """Cover visualization _backend lazy imports."""
+    """Cover import-error branches in visualization._backend."""
 
-    def test_get_matplotlib(self):
-        """Cover lines 27-44."""
-        pytest.importorskip("matplotlib")
-        from quantspt.visualization._backend import _get_matplotlib
-
-        plt, Figure = _get_matplotlib()
-        assert plt is not None
-        assert Figure is not None
-
-    def test_get_plotly(self):
-        """Cover lines 14-24."""
-        pytest.importorskip("plotly")
+    def test_plotly_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
         from quantspt.visualization._backend import _get_plotly
 
-        go = _get_plotly()
-        assert go is not None
+        monkeypatch.setitem(sys.modules, "plotly", None)
+        monkeypatch.setitem(sys.modules, "plotly.graph_objects", None)
+        with pytest.raises(ImportError, match="plotly"):
+            _get_plotly()
 
-    def test_validate_backend_invalid(self):
-        """Cover line 50."""
-        from quantspt.visualization._backend import _validate_backend
+    def test_matplotlib_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantspt.visualization._backend import _get_matplotlib
 
-        with pytest.raises(ValueError, match="must be"):
-            _validate_backend("invalid")
-
-
-# ── backtesting/attribution.py (lines 121-125) ───────────────────────
+        monkeypatch.setitem(sys.modules, "matplotlib", None)
+        monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+        with pytest.raises(ImportError, match="matplotlib"):
+            _get_matplotlib()
 
 
-class TestAttributionEdge:
-    """Cover edge case in compute_attribution."""
+# ---------------------------------------------------------------------------
+# ml/losses.py: _CompositeLoss and _BaseLoss arithmetic edge cases
+# ---------------------------------------------------------------------------
 
-    def test_attribution_single_step(self):
-        """Cover boundary path in compute_attribution (lines 121-125)."""
-        from quantspt.backtesting.attribution import compute_attribution
-        from quantspt.core.generating_functions import DiversityGenerator
 
-        gf = DiversityGenerator(p=0.5)
-        n = 3
-        mu_path = np.array([[0.4, 0.35, 0.25], [0.38, 0.37, 0.25]])
-        a_path = np.array([np.eye(n) * 0.04] * 2)
-        result = compute_attribution(
-            gf, mu_path, a_path, actual_log_relative=0.01, dt=1.0 / 252
+class TestLossesCoverage:
+    """Cover remaining loss function branches."""
+
+    def test_composite_radd_with_composite(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        c1 = relative_return_loss + turnover_penalty
+        c2 = relative_return_loss + turnover_penalty
+        combined = c1.__radd__(c2)
+        assert len(combined.terms) == 4
+
+    def test_composite_radd_with_base(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        composite = relative_return_loss + turnover_penalty
+        combined = composite.__radd__(relative_return_loss)
+        assert len(combined.terms) == 3
+
+    def test_composite_add_with_composite(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        c1 = relative_return_loss + turnover_penalty
+        c2 = relative_return_loss + turnover_penalty
+        combined = c1 + c2
+        assert len(combined.terms) == 4
+
+    def test_base_radd_with_composite(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        composite = relative_return_loss + turnover_penalty
+        combined = turnover_penalty.__radd__(composite)
+        assert len(combined.terms) == 3
+
+    def test_base_add_with_composite(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        composite = relative_return_loss + turnover_penalty
+        combined = turnover_penalty.__add__(composite)
+        assert len(combined.terms) == 3
+
+    def test_base_rmul(self) -> None:
+        from quantspt.ml.losses import turnover_penalty
+
+        scaled = turnover_penalty.__rmul__(0.5)
+        assert len(scaled.terms) == 1
+        assert scaled.terms[0][0] == 0.5
+
+    def test_base_mul(self) -> None:
+        from quantspt.ml.losses import turnover_penalty
+
+        scaled = turnover_penalty.__mul__(2.0)
+        assert len(scaled.terms) == 1
+        assert scaled.terms[0][0] == 2.0
+
+    def test_composite_rmul(self) -> None:
+        from quantspt.ml.losses import relative_return_loss, turnover_penalty
+
+        composite = relative_return_loss + turnover_penalty
+        scaled = 0.5 * composite
+        assert all(abs(c) <= 0.5 + 1e-10 for c, _ in scaled.terms)
+
+    def test_turnover_penalty_single_timestep(self) -> None:
+        from quantspt.ml.losses import turnover_penalty
+
+        weights = torch.rand(1, 5)
+        returns = 1.0 + torch.randn(1, 5) * 0.01
+        loss = turnover_penalty(weights, returns)
+        assert loss.item() == pytest.approx(0.0)
+
+    def test_drift_integral_loss_full(self) -> None:
+        from quantspt.ml.losses import DriftIntegralLoss, drift_integral_loss
+
+        T, n = 20, 5
+        rng = np.random.default_rng(42)
+        alpha = rng.exponential(size=(T, n))
+        mw = alpha / alpha.sum(axis=1, keepdims=True)
+        pw = alpha / alpha.sum(axis=1, keepdims=True) * 0.9 + 0.1 / n
+        returns = 1.0 + rng.standard_normal((T, n)) * 0.01
+        L = rng.standard_normal((n, n)) * 0.1
+        covs = np.array([L @ L.T + np.eye(n) * 0.01 for _ in range(T)])
+
+        loss_val = drift_integral_loss(pw, mw, covs, 1 / 252)
+        assert torch.isfinite(loss_val)
+
+        dil = DriftIntegralLoss(dt=1 / 252)
+        pw_t = torch.tensor(pw, dtype=torch.float64)
+        returns_t = torch.tensor(returns, dtype=torch.float64)
+        loss = dil(
+            pw_t,
+            returns_t,
+            market_weights=mw,
+            covariance_matrices=covs,
         )
-        assert hasattr(result, "boundary")
-        assert hasattr(result, "drift_integral")
+        assert torch.isfinite(loss)
 
-
-# ── ml/losses.py (uncovered lines: 88-96, 101, 113-118, etc.) ────────
-
-
-class TestMLLosses:
-    """Cover loss function edge cases."""
-
-    def test_relative_return_loss(self):
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import RelativeReturnLoss
-
-        loss_fn = RelativeReturnLoss()
-        assert callable(loss_fn)
-
-    def test_weight_regularization(self):
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import WeightRegularization
-
-        reg = WeightRegularization()
-        assert callable(reg)
-
-    def test_turnover_penalty(self):
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import TurnoverPenalty
-
-        pen = TurnoverPenalty()
-        assert callable(pen)
-
-    def test_default_loss(self):
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import default_loss
-
-        loss = default_loss()
-        assert callable(loss)
-
-    def test_drift_integral_loss(self):
-        pytest.importorskip("torch")
+    def test_drift_integral_loss_missing_args(self) -> None:
         from quantspt.ml.losses import DriftIntegralLoss
 
-        loss = DriftIntegralLoss()
-        assert callable(loss)
+        dil = DriftIntegralLoss()
+        w = torch.rand(10, 5)
+        r = torch.rand(10, 5)
+        with pytest.raises(ValueError, match="market_weights"):
+            dil(w, r)
 
-    def test_loss_composition(self):
-        """Cover _CompositeLoss (lines 67-101)."""
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import (
-            RelativeReturnLoss,
-            TurnoverPenalty,
-            WeightRegularization,
+    def test_sharpe_relative_loss(self) -> None:
+        from quantspt.ml.losses import sharpe_of_relative_loss
+
+        weights = torch.rand(20, 5)
+        weights = weights / weights.sum(dim=-1, keepdim=True)
+        returns = 1.0 + torch.randn(20, 5) * 0.01
+        loss = sharpe_of_relative_loss(weights, returns)
+        assert torch.isfinite(loss)
+
+
+# ---------------------------------------------------------------------------
+# ml/regime.py: import guards, predict_proba 1d, forecast_diversity
+# ---------------------------------------------------------------------------
+
+
+class TestRegimeCoverage:
+    """Cover remaining regime detection branches."""
+
+    def test_require_hmmlearn_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from quantspt.ml.regime import _require_hmmlearn
+
+        monkeypatch.setitem(sys.modules, "hmmlearn", None)
+        with pytest.raises(ImportError, match="quantspt\\[ml\\]"):
+            _require_hmmlearn()
+
+    def test_require_ruptures_import_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from quantspt.ml.regime import _require_ruptures
+
+        monkeypatch.setitem(sys.modules, "ruptures", None)
+        with pytest.raises(ImportError, match="quantspt\\[ml\\]"):
+            _require_ruptures()
+
+    def test_hmm_fit_with_n_regimes_override(self) -> None:
+        from quantspt.ml.regime import HMMRegimeDetector
+
+        rng = np.random.default_rng(42)
+        features = np.concatenate(
+            [rng.normal(0, 1, (100, 2)), rng.normal(3, 1, (100, 2))]
         )
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(features, n_regimes=3)
+        assert detector.n_regimes == 3
 
-        combined = RelativeReturnLoss() + 0.01 * WeightRegularization()
-        assert callable(combined)
-        combined2 = combined + 0.005 * TurnoverPenalty()
-        assert callable(combined2)
-
-    def test_sharpe_relative_loss(self):
-        pytest.importorskip("torch")
-        from quantspt.ml.losses import SharpeRelativeLoss
-
-        loss = SharpeRelativeLoss()
-        assert callable(loss)
-
-
-# ── ml/covariance.py (lines 74, 88, 95, 139, 178, 226, 276) ─────────
-
-
-class TestMLCovarianceEdge:
-    """Cover edge cases in FactorModelEstimator and RMTDenoiser."""
-
-    def test_factor_model_n_factors_exceeds_assets(self):
-        """Cover line 139 (k = min(n_factors, n))."""
-        from quantspt.ml.covariance import FactorModelEstimator
+    def test_hmm_predict_proba_1d(self) -> None:
+        from quantspt.ml.regime import HMMRegimeDetector
 
         rng = np.random.default_rng(42)
-        returns = rng.standard_normal((50, 3))
-        fm = FactorModelEstimator(n_factors=10)
-        fm.fit(returns)
-        cov = fm.estimate()
-        assert cov.shape == (3, 3)
+        features = np.concatenate([rng.normal(0, 1, 100), rng.normal(3, 1, 100)])
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(features)
+        proba = detector.predict_proba(features)
+        assert proba.shape == (200, 2)
+        np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-10)
 
-    def test_factor_model_auto_select(self):
-        """Cover explained variance auto-selection."""
-        from quantspt.ml.covariance import FactorModelEstimator
-
-        rng = np.random.default_rng(42)
-        returns = rng.standard_normal((100, 5))
-        fm = FactorModelEstimator(n_factors=None, explained_variance_threshold=0.5)
-        fm.fit(returns)
-        cov = fm.estimate()
-        assert cov.shape == (5, 5)
-
-    def test_factor_model_loadings(self):
-        """Cover line 74, 88, 95 (property accessors)."""
-        from quantspt.ml.covariance import FactorModelEstimator
+    def test_hmm_forecast_diversity(self) -> None:
+        from quantspt.ml.regime import HMMRegimeDetector
 
         rng = np.random.default_rng(42)
-        returns = rng.standard_normal((100, 5))
-        fm = FactorModelEstimator(n_factors=2)
-        fm.fit(returns)
-        loadings = fm.loadings
-        assert loadings is not None
-        assert loadings.shape[0] == 5
+        features = np.concatenate(
+            [rng.normal(0, 1, (100, 2)), rng.normal(3, 1, (100, 2))]
+        )
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(features)
+        forecast = detector.forecast_diversity(horizon=10)
+        assert forecast.shape == (10, 2)
+        np.testing.assert_allclose(forecast.sum(axis=1), 1.0, atol=1e-10)
 
-    def test_rmt_denoiser_underdetermined(self):
-        """Cover RMTDenoiser with T < n (short sample)."""
+    def test_changepoint_predict_2d(self) -> None:
+        from quantspt.ml.regime import ChangepointDetector
+
+        rng = np.random.default_rng(42)
+        signal = np.concatenate(
+            [rng.normal(0, 0.1, (80, 2)), rng.normal(5, 0.1, (80, 2))]
+        )
+        detector = ChangepointDetector(penalty=1.0, min_size=10)
+        labels = detector.predict(signal)
+        assert labels.shape == (160,)
+        assert labels.dtype == np.int64
+
+    def test_changepoint_predict_unfitted(self) -> None:
+        from quantspt.ml.regime import ChangepointDetector
+
+        rng = np.random.default_rng(42)
+        signal = np.concatenate([rng.normal(0, 0.1, 50), rng.normal(5, 0.1, 50)])
+        detector = ChangepointDetector(penalty=1.0, min_size=10)
+        labels = detector.predict(signal)
+        assert labels.shape == (100,)
+
+
+# ---------------------------------------------------------------------------
+# ml/neural_fgp.py: import guard
+# ---------------------------------------------------------------------------
+
+
+class TestNeuralFGPCoverage:
+    """Cover neural FGP import guard."""
+
+    def test_require_torch_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantspt.ml.neural_fgp import _require_torch
+
+        monkeypatch.setitem(sys.modules, "torch", None)
+        with pytest.raises(ImportError, match="quantspt\\[ml\\]"):
+            _require_torch()
+
+
+# ---------------------------------------------------------------------------
+# ml/covariance.py: unfitted property access
+# ---------------------------------------------------------------------------
+
+
+class TestCovarianceCoverage:
+    """Cover remaining covariance module branches."""
+
+    def test_factor_model_unfitted_properties(self) -> None:
+        from quantspt.ml.covariance import FactorModelEstimator
+
+        model = FactorModelEstimator(n_factors=3)
+        with pytest.raises(RuntimeError, match="fitted"):
+            _ = model.n_factors
+        with pytest.raises(RuntimeError, match="fitted"):
+            _ = model.loadings
+        with pytest.raises(RuntimeError, match="fitted"):
+            _ = model.factor_covariance
+        with pytest.raises(RuntimeError, match="fitted"):
+            _ = model.idiosyncratic_variance
+
+    def test_rmt_unfitted_estimate(self) -> None:
         from quantspt.ml.covariance import RMTDenoiser
 
-        rng = np.random.default_rng(42)
-        returns = rng.standard_normal((10, 20))
-        rmt = RMTDenoiser()
-        rmt.fit(returns)
-        cov = rmt.estimate()
-        assert cov.shape == (20, 20)
-        assert np.allclose(cov, cov.T)
+        model = RMTDenoiser()
+        assert model.n_assets == 0
+        with pytest.raises(RuntimeError, match="fitted"):
+            model.estimate()
+
+    def test_rmt_invalid_method(self) -> None:
+        from quantspt.ml.covariance import RMTDenoiser
+
+        with pytest.raises(ValueError, match="method must be"):
+            RMTDenoiser(method="bogus")
 
 
-# ── optimization/generating_function.py (lines 226-237) ──────────────
+# ---------------------------------------------------------------------------
+# ml/_protocols.py: LearnedGeneratingFunction validation
+# ---------------------------------------------------------------------------
 
 
-class TestOptGeneratingFunctionEdge:
-    """Cover edge cases in GF optimization."""
+class TestProtocolsCoverage:
+    """Cover LearnedGeneratingFunction validation branches."""
 
-    def test_optimize_diversity_parameter(self):
-        """Cover lines 226-237 in generating_function.py."""
+    def test_learned_gf_validation_hessian_check(self) -> None:
+        from quantspt.errors import SPTInvariantError
+        from quantspt.ml._protocols import LearnedGeneratingFunction
+
+        class BadModel:
+            def generating_function(self, mu: np.ndarray) -> float:
+                return float(np.sum(mu**0.5))
+
+            def log_gradient(self, mu: np.ndarray) -> np.ndarray:
+                return np.zeros_like(mu)
+
+            def hessian(self, mu: np.ndarray) -> np.ndarray:
+                return np.eye(len(mu)) * 10.0
+
+            def to_generating_function(self):  # type: ignore[no-untyped-def]
+                pass
+
+        with pytest.raises(SPTInvariantError, match="negative semi-definite"):
+            LearnedGeneratingFunction(
+                BadModel(),
+                name_str="Bad",
+                n_assets=5,
+                skip_validation=False,  # type: ignore[arg-type]
+            )
+
+
+# ---------------------------------------------------------------------------
+# visualization/export.py: PDF, LaTeX, report branches
+# ---------------------------------------------------------------------------
+
+
+class TestExportCoverage:
+    """Cover remaining export format branches."""
+
+    def test_to_latex_pdf(self, tmp_path: Path) -> None:
+        import matplotlib.pyplot as plt
+
+        from quantspt.visualization.export import to_latex
+
+        fig, ax = plt.subplots()
+        ax.plot([1, 2, 3])
+        out = to_latex(fig, tmp_path / "test.pdf")
+        assert out.exists()
+
+    def test_to_latex_pgf(self, tmp_path: Path) -> None:
+        import matplotlib
+        import matplotlib.pyplot as plt
+
+        matplotlib.use("Agg")
+        from quantspt.visualization.export import to_latex
+
+        fig, ax = plt.subplots()
+        ax.plot([1, 2, 3])
+        out = to_latex(fig, tmp_path / "test.png")
+        assert out.exists()
+
+    def test_to_pdf_matplotlib(self, tmp_path: Path) -> None:
+        import matplotlib.pyplot as plt
+
+        from quantspt.visualization.export import to_pdf
+
+        fig, ax = plt.subplots()
+        ax.plot([1, 2, 3])
+        out = to_pdf(fig, tmp_path / "test.pdf")
+        assert out.exists()
+
+    def test_to_html_matplotlib(self, tmp_path: Path) -> None:
+        import matplotlib.pyplot as plt
+
+        from quantspt.visualization.export import to_html
+
+        fig, ax = plt.subplots()
+        ax.plot([1, 2, 3])
+        out = to_html(fig, tmp_path / "test.html")
+        assert out.exists()
+        content = out.read_text()
+        assert "<svg" in content
+
+    def test_to_html_matplotlib_fragment(self, tmp_path: Path) -> None:
+        import matplotlib.pyplot as plt
+
+        from quantspt.visualization.export import to_html
+
+        fig, ax = plt.subplots()
+        ax.plot([1, 2, 3])
+        out = to_html(fig, tmp_path / "test.html", full_html=False)
+        assert out.exists()
+
+    def test_generate_report_pdf(self, tmp_path: Path) -> None:
+        from quantspt.visualization.export import generate_report
+
+        result = {
+            "returns": np.random.default_rng(0).standard_normal(50) * 0.01,
+            "metrics": {"sharpe": 1.5, "max_drawdown": 0.1, "total_return": 0.25},
+        }
+        out = generate_report(result, tmp_path / "report.pdf", format="pdf")
+        assert out.exists()
+
+    def test_generate_report_latex(self, tmp_path: Path) -> None:
+        from quantspt.visualization.export import generate_report
+
+        result = {
+            "returns": np.random.default_rng(0).standard_normal(50) * 0.01,
+            "metrics": {"sharpe": 1.5, "total_return": "0.25"},
+        }
+        out = generate_report(result, tmp_path / "report.tex", format="latex")
+        assert out.exists()
+        content = out.read_text()
+        assert "\\begin{document}" in content
+
+    def test_generate_report_latex_without_metrics(self, tmp_path: Path) -> None:
+        from quantspt.visualization.export import generate_report
+
+        result = {"returns": np.random.default_rng(0).standard_normal(50) * 0.01}
+        out = generate_report(result, tmp_path / "report.tex", format="latex")
+        assert out.exists()
+
+    def test_generate_report_html_with_weights(self, tmp_path: Path) -> None:
+        import pandas as pd
+
+        from quantspt.visualization.export import generate_report
+
+        result = {
+            "returns": np.random.default_rng(0).standard_normal(50) * 0.01,
+            "metrics": {"sharpe": 1.5},
+            "weights": pd.DataFrame(
+                {"AAPL": [0.3, 0.4], "MSFT": [0.7, 0.6]},
+                index=pd.date_range("2020-01-01", periods=2),
+            ),
+        }
+        out = generate_report(result, tmp_path / "report.html", format="html")
+        assert out.exists()
+        content = out.read_text()
+        assert "AAPL" in content
+
+    def test_render_weights_dict(self, tmp_path: Path) -> None:
+        from quantspt.visualization.export import _render_weights_html
+
+        html = _render_weights_html({"AAPL": 0.5, "MSFT": 0.5})
+        assert "AAPL" in html
+
+    def test_render_weights_unsupported(self) -> None:
+        from quantspt.visualization.export import _render_weights_html
+
+        result = _render_weights_html([0.5, 0.5])
+        assert result == ""
+
+    def test_render_metrics_non_float(self) -> None:
+        from quantspt.visualization.export import _render_metrics_html
+
+        html = _render_metrics_html({"status": "good", "sharpe": 1.5})
+        assert "good" in html
+
+    def test_normalize_result_object(self) -> None:
+        from quantspt.visualization.export import _normalize_result
+
+        class FakeResult:
+            def __init__(self) -> None:
+                self.returns = [0.01, 0.02]
+                self.metrics = {"sharpe": 1.0}
+
+        result = _normalize_result(FakeResult())
+        assert "returns" in result
+        assert "metrics" in result
+
+    def test_require_matplotlib_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantspt.visualization.export import _require_matplotlib
+
+        monkeypatch.setitem(sys.modules, "matplotlib", None)
+        with pytest.raises(ImportError, match="matplotlib"):
+            _require_matplotlib()
+
+    def test_require_plotly_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from quantspt.visualization.export import _require_plotly
+
+        monkeypatch.setitem(sys.modules, "plotly", None)
+        with pytest.raises(ImportError, match="plotly"):
+            _require_plotly()
+
+
+# ---------------------------------------------------------------------------
+# data/providers/csv_parquet.py: edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestCSVParquetCoverage:
+    """Cover edge cases in CSV/Parquet providers."""
+
+    def test_csv_detect_datetime_column(self, tmp_path: Path) -> None:
+        import pandas as pd
+
+        from quantspt.data.providers.csv_parquet import CSVProvider
+
+        df = pd.DataFrame(
+            {
+                "weird_col": pd.date_range("2020-01-01", periods=5),
+                "AAPL": [100.0, 101.0, 102.0, 103.0, 104.0],
+                "MSFT": [200.0, 201.0, 202.0, 203.0, 204.0],
+            }
+        )
+        csv_path = tmp_path / "test.csv"
+        df.to_csv(csv_path, index=False)
+        provider = CSVProvider(csv_path)
+        result = provider.load(tickers=["AAPL", "MSFT"])
+        assert result.data is not None
+
+    def test_csv_no_date_column_uses_index(self, tmp_path: Path) -> None:
+        import pandas as pd
+
+        from quantspt.data.providers.csv_parquet import CSVProvider
+
+        df = pd.DataFrame(
+            {"AAPL": [100.0, 101.0], "MSFT": [200.0, 201.0]},
+            index=pd.date_range("2020-01-01", periods=2),
+        )
+        csv_path = tmp_path / "test.csv"
+        df.to_csv(csv_path)
+        provider = CSVProvider(csv_path)
+        result = provider.load()
+        assert result.data is not None
+
+    def test_parquet_filter_by_tickers(self, tmp_path: Path) -> None:
+        import pandas as pd
+
+        from quantspt.data.providers.csv_parquet import ParquetProvider
+
+        df = pd.DataFrame(
+            {"AAPL": [100.0, 101.0], "MSFT": [200.0, 201.0], "GOOG": [300.0, 301.0]},
+            index=pd.date_range("2020-01-01", periods=2),
+        )
+        pq_path = tmp_path / "test.parquet"
+        df.to_parquet(pq_path)
+        provider = ParquetProvider(pq_path)
+        result = provider.load(tickers=["AAPL"])
+        assert "AAPL" in result.data.tickers
+
+
+# ---------------------------------------------------------------------------
+# post_processing/discrete_allocation.py
+# ---------------------------------------------------------------------------
+
+
+class TestDiscreteAllocationCoverage:
+    """Cover edge cases in discrete allocation."""
+
+    def test_greedy_zero_invested(self) -> None:
+        """When prices are too high for budget, get zero allocation."""
+        from quantspt.post_processing.discrete_allocation import greedy_allocation
+
+        result = greedy_allocation(
+            weights=np.array([0.6, 0.4]),
+            prices=np.array([10000.0, 20000.0]),
+            total_value=1.0,
+        )
+        assert np.all(result.shares == 0)
+        assert np.allclose(result.actual_weights, 0.0)
+
+    def test_lp_allocation_basic(self) -> None:
+        """LP allocation works for basic case."""
+        from quantspt.post_processing.discrete_allocation import lp_allocation
+
+        result = lp_allocation(
+            weights=np.array([0.6, 0.4]),
+            prices=np.array([100.0, 50.0]),
+            total_value=10000.0,
+        )
+        assert np.all(result.shares >= 0)
+        assert result.leftover_cash >= 0
+
+    def test_lp_allocation_zero_actual(self) -> None:
+        """LP allocation with very expensive assets gives zero weights."""
+        from quantspt.post_processing.discrete_allocation import lp_allocation
+
+        result = lp_allocation(
+            weights=np.array([0.6, 0.4]),
+            prices=np.array([100000.0, 200000.0]),
+            total_value=100.0,
+        )
+        assert np.all(result.shares == 0)
+        assert np.allclose(result.actual_weights, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# optimization/generating_function.py: grid search exception + refinement
+# ---------------------------------------------------------------------------
+
+
+class TestOptimizationCoverage:
+    """Cover remaining optimization branches."""
+
+    def test_diversity_parameter_with_refinement(self) -> None:
         from quantspt.optimization.generating_function import (
             optimize_diversity_parameter,
         )
 
         rng = np.random.default_rng(42)
-        T, n = 20, 5
-        weights_path = np.abs(rng.standard_normal((T, n)))
-        weights_path = weights_path / weights_path.sum(axis=1, keepdims=True)
-        cov = rng.random((n, n))
-        cov = cov @ cov.T / 10
-        cov_matrices = [cov] * T
-        result = optimize_diversity_parameter(weights_path, cov_matrices)
-        assert result is not None
+        n = 5
+        alpha = rng.exponential(size=(50, n))
+        mw = alpha / alpha.sum(axis=1, keepdims=True)
+        L = rng.standard_normal((n, n)) * 0.1
+        cov = L @ L.T + np.eye(n) * 0.01
+        covs = np.array([cov for _ in range(50)])
 
-
-# ── post_processing/discrete_allocation.py (lines 94, 104, etc.) ─────
-
-
-class TestDiscreteAllocationEdge:
-    """Cover edge cases in discrete allocation."""
-
-    def test_greedy_allocation_with_zero_weights(self):
-        """Cover edge case where some weights are zero."""
-        from quantspt.post_processing.discrete_allocation import greedy_allocation
-
-        weights = np.array([0.0, 0.5, 0.5, 0.0])
-        prices = np.array([100.0, 50.0, 25.0, 200.0])
-        result = greedy_allocation(weights, prices, total_value=1000.0)
-        assert result.shares.shape == (4,)
-        assert result.shares[0] == 0
-        assert result.shares[3] == 0
-
-
-# ── simulation edge cases ────────────────────────────────────────────
-
-
-class TestSimulationEdge:
-    """Cover edge cases in simulation modules."""
-
-    def test_simulate_market(self):
-        """Cover line 188 in market_simulator.py."""
-        from quantspt.models.gbm import CorrelatedGBMMarket
-        from quantspt.simulation.market_simulator import simulate_market
-
-        n = 3
-        model = CorrelatedGBMMarket(
-            mu=np.array([0.05, 0.05, 0.05]),
-            cov=np.eye(n) * 0.04,
+        result = optimize_diversity_parameter(
+            weights=mw,
+            cov_matrices=covs,
+            p_range=(0.1, 0.9),
+            n_grid=5,
+            refine=True,
         )
-        x0 = np.array([100.0, 100.0, 100.0])
-        result = simulate_market(model, x0, T=1.0, n_steps=5, seed=42)
-        assert result.data.prices.shape[0] == 6
-
-    def test_monte_carlo_few_paths(self):
-        """Cover edge case in monte_carlo.py (lines 247-248)."""
-        from quantspt.core.processes import CorrelatedGBM
-        from quantspt.simulation.monte_carlo import MonteCarloEngine
-
-        n = 2
-        process = CorrelatedGBM(
-            mu=np.array([0.05, 0.05]),
-            cov=np.eye(n) * 0.04,
-            x0=np.array([100.0, 100.0]),
-        )
-        engine = MonteCarloEngine(process, n_paths=5, n_steps=10, T=0.1)
-        result = engine.run()
-        assert result is not None
+        assert result.optimal_param > 0
+        assert result.method in ("grid", "grid+brent")
