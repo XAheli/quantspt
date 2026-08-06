@@ -1,4 +1,4 @@
-"""Tests for visualization/performance.py."""
+"""Tests for visualization/performance.py — dual backend."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ import pytest
 
 matplotlib.use("Agg")
 
-from matplotlib.figure import Figure
+import plotly.graph_objects as go
+from matplotlib.figure import Figure as MplFigure
 
 from quantspt.visualization.performance import (
     plot_cumulative_returns,
@@ -21,25 +22,53 @@ from quantspt.visualization.performance import (
 def returns_dict():
     rng = np.random.default_rng(42)
     return {
-        "Strategy A": rng.standard_normal(100) * 0.01,
-        "Strategy B": rng.standard_normal(100) * 0.01 + 0.001,
+        "Portfolio": rng.normal(0.001, 0.02, size=100),
+        "Market": rng.normal(0.0005, 0.015, size=100),
     }
 
 
 @pytest.fixture()
+def pi_returns():
+    rng = np.random.default_rng(42)
+    return rng.normal(0.001, 0.02, size=100)
+
+
+@pytest.fixture()
+def mu_returns():
+    rng = np.random.default_rng(43)
+    return rng.normal(0.0005, 0.015, size=100)
+
+
+@pytest.fixture()
 def decomp_dict():
-    t = np.linspace(0, 1, 50)
-    return {
-        "boundary": -0.003 * t,
-        "drift": 0.014 * t,
-        "residual": np.random.default_rng(42).standard_normal(50) * 0.001,
-    }
+    rng = np.random.default_rng(42)
+    t = 100
+    boundary = np.cumsum(rng.normal(0.0001, 0.001, size=t))
+    drift = np.cumsum(rng.normal(-0.00005, 0.0005, size=t))
+    return {"boundary": boundary, "drift": drift}
 
 
-class TestCumulativeReturns:
-    def test_returns_figure(self, returns_dict) -> None:
-        fig = plot_cumulative_returns(returns_dict)
-        assert isinstance(fig, Figure)
+class TestCumulativeReturnsPlotly:
+    def test_returns_plotly_figure(self, returns_dict) -> None:
+        fig = plot_cumulative_returns(returns_dict, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+    def test_custom_title(self, returns_dict) -> None:
+        fig = plot_cumulative_returns(returns_dict, backend="plotly", title="Test")
+        assert fig.layout.title.text == "Test"
+
+    def test_single_strategy(self) -> None:
+        rng = np.random.default_rng(42)
+        fig = plot_cumulative_returns(
+            {"Solo": rng.normal(0, 0.01, 50)}, backend="plotly"
+        )
+        assert isinstance(fig, go.Figure)
+
+
+class TestCumulativeReturnsMatplotlib:
+    def test_returns_mpl_figure(self, returns_dict) -> None:
+        fig = plot_cumulative_returns(returns_dict, backend="matplotlib")
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
@@ -48,54 +77,47 @@ class TestCumulativeReturns:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        result = plot_cumulative_returns(returns_dict, ax=ax)
-        assert isinstance(result, Figure)
+        result = plot_cumulative_returns(returns_dict, backend="matplotlib", ax=ax)
+        assert isinstance(result, MplFigure)
         plt.close(fig)
 
-    def test_custom_title(self, returns_dict) -> None:
-        fig = plot_cumulative_returns(returns_dict, title="My Title")
-        assert isinstance(fig, Figure)
+
+class TestRelativePerformancePlotly:
+    def test_returns_plotly_figure(self, pi_returns, mu_returns) -> None:
+        fig = plot_relative_performance(pi_returns, mu_returns, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+    def test_identical_returns(self) -> None:
+        rets = np.zeros(50)
+        fig = plot_relative_performance(rets, rets, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+
+class TestRelativePerformanceMatplotlib:
+    def test_returns_mpl_figure(self, pi_returns, mu_returns) -> None:
+        fig = plot_relative_performance(pi_returns, mu_returns, backend="matplotlib")
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
 
 
-class TestRelativePerformance:
-    def test_returns_figure(self) -> None:
-        rng = np.random.default_rng(42)
-        pi = rng.standard_normal(50) * 0.01
-        mu = rng.standard_normal(50) * 0.01
-        fig = plot_relative_performance(pi, mu)
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
+class TestMasterFormulaPlotly:
+    def test_returns_plotly_figure(self, decomp_dict) -> None:
+        fig = plot_master_formula_decomposition(decomp_dict, backend="plotly")
+        assert isinstance(fig, go.Figure)
 
-        plt.close(fig)
-
-    def test_with_ax(self) -> None:
-        import matplotlib.pyplot as plt
-
-        rng = np.random.default_rng(42)
-        pi = rng.standard_normal(50) * 0.01
-        mu = rng.standard_normal(50) * 0.01
-        fig, ax = plt.subplots()
-        result = plot_relative_performance(pi, mu, ax=ax)
-        assert isinstance(result, Figure)
-        plt.close(fig)
+    def test_with_residual(self, decomp_dict) -> None:
+        decomp_dict["residual"] = np.zeros(100)
+        fig = plot_master_formula_decomposition(decomp_dict, backend="plotly")
+        assert isinstance(fig, go.Figure)
+        assert len(fig.data) == 4
 
 
-class TestMasterFormulaDecomp:
-    def test_returns_figure(self, decomp_dict) -> None:
-        fig = plot_master_formula_decomposition(decomp_dict)
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
-
-        plt.close(fig)
-
-    def test_without_residual(self) -> None:
-        t = np.linspace(0, 1, 20)
-        d = {"boundary": -0.01 * t, "drift": 0.02 * t}
-        fig = plot_master_formula_decomposition(d)
-        assert isinstance(fig, Figure)
+class TestMasterFormulaMatplotlib:
+    def test_returns_mpl_figure(self, decomp_dict) -> None:
+        fig = plot_master_formula_decomposition(decomp_dict, backend="matplotlib")
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
@@ -104,6 +126,8 @@ class TestMasterFormulaDecomp:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        result = plot_master_formula_decomposition(decomp_dict, ax=ax)
-        assert isinstance(result, Figure)
+        result = plot_master_formula_decomposition(
+            decomp_dict, backend="matplotlib", ax=ax
+        )
+        assert isinstance(result, MplFigure)
         plt.close(fig)

@@ -1,4 +1,4 @@
-"""Tests for visualization/portfolio_weights.py."""
+"""Tests for visualization/portfolio_weights.py — dual backend."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ import pytest
 
 matplotlib.use("Agg")
 
-from matplotlib.figure import Figure
+import plotly.graph_objects as go
+from matplotlib.figure import Figure as MplFigure
 
 from quantspt.visualization.portfolio_weights import (
     plot_weight_comparison,
@@ -19,10 +20,10 @@ from quantspt.visualization.portfolio_weights import (
 @pytest.fixture()
 def weight_paths():
     rng = np.random.default_rng(42)
-    paths = np.zeros((30, 4))
-    w = rng.dirichlet(np.ones(4))
-    for t in range(30):
-        noise = rng.standard_normal(4) * 0.01
+    paths = np.zeros((50, 5))
+    w = rng.dirichlet(np.ones(5))
+    for t in range(50):
+        noise = rng.standard_normal(5) * 0.01
         w = np.abs(w + noise)
         w /= w.sum()
         paths[t] = w
@@ -33,31 +34,50 @@ def weight_paths():
 def weights_dict():
     rng = np.random.default_rng(42)
     return {
-        "Equal weight": np.ones(5) / 5,
-        "Diversity": rng.dirichlet(np.ones(5)),
-        "Concentrated": np.array([0.5, 0.2, 0.15, 0.1, 0.05]),
+        "Strategy A": rng.dirichlet(np.ones(5)),
+        "Strategy B": rng.dirichlet(np.ones(5)),
     }
 
 
-class TestWeightEvolution:
-    def test_returns_figure(self, weight_paths) -> None:
-        fig = plot_weight_evolution(weight_paths)
-        assert isinstance(fig, Figure)
+class TestWeightEvolutionPlotly:
+    def test_returns_plotly_figure(self, weight_paths) -> None:
+        fig = plot_weight_evolution(weight_paths, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+    def test_stacked(self, weight_paths) -> None:
+        fig = plot_weight_evolution(weight_paths, backend="plotly", stacked=True)
+        assert isinstance(fig, go.Figure)
+
+    def test_with_labels(self, weight_paths) -> None:
+        labels = [f"Asset {i}" for i in range(5)]
+        fig = plot_weight_evolution(weight_paths, backend="plotly", labels=labels)
+        assert isinstance(fig, go.Figure)
+
+    def test_single_asset(self) -> None:
+        paths = np.ones((20, 1))
+        fig = plot_weight_evolution(paths, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+    def test_100_assets(self) -> None:
+        rng = np.random.default_rng(99)
+        paths = np.zeros((10, 100))
+        for t in range(10):
+            paths[t] = rng.dirichlet(np.ones(100))
+        fig = plot_weight_evolution(paths, backend="plotly")
+        assert isinstance(fig, go.Figure)
+
+
+class TestWeightEvolutionMatplotlib:
+    def test_returns_mpl_figure(self, weight_paths) -> None:
+        fig = plot_weight_evolution(weight_paths, backend="matplotlib")
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
 
     def test_stacked(self, weight_paths) -> None:
-        fig = plot_weight_evolution(weight_paths, stacked=True)
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
-
-        plt.close(fig)
-
-    def test_with_labels(self, weight_paths) -> None:
-        labels = [f"Stock {i}" for i in range(4)]
-        fig = plot_weight_evolution(weight_paths, labels=labels)
-        assert isinstance(fig, Figure)
+        fig = plot_weight_evolution(weight_paths, backend="matplotlib", stacked=True)
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
@@ -66,30 +86,30 @@ class TestWeightEvolution:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        result = plot_weight_evolution(weight_paths, ax=ax)
-        assert isinstance(result, Figure)
-        plt.close(fig)
-
-    def test_custom_title(self, weight_paths) -> None:
-        fig = plot_weight_evolution(weight_paths, title="Weights")
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
-
+        result = plot_weight_evolution(weight_paths, backend="matplotlib", ax=ax)
+        assert isinstance(result, MplFigure)
         plt.close(fig)
 
 
-class TestWeightComparison:
-    def test_returns_figure(self, weights_dict) -> None:
-        fig = plot_weight_comparison(weights_dict)
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
-
-        plt.close(fig)
+class TestWeightComparisonPlotly:
+    def test_returns_plotly_figure(self, weights_dict) -> None:
+        fig = plot_weight_comparison(weights_dict, backend="plotly")
+        assert isinstance(fig, go.Figure)
 
     def test_with_tickers(self, weights_dict) -> None:
         tickers = ["A", "B", "C", "D", "E"]
-        fig = plot_weight_comparison(weights_dict, tickers=tickers)
-        assert isinstance(fig, Figure)
+        fig = plot_weight_comparison(weights_dict, backend="plotly", tickers=tickers)
+        assert isinstance(fig, go.Figure)
+
+    def test_custom_title(self, weights_dict) -> None:
+        fig = plot_weight_comparison(weights_dict, backend="plotly", title="Custom")
+        assert fig.layout.title.text == "Custom"
+
+
+class TestWeightComparisonMatplotlib:
+    def test_returns_mpl_figure(self, weights_dict) -> None:
+        fig = plot_weight_comparison(weights_dict, backend="matplotlib")
+        assert isinstance(fig, MplFigure)
         import matplotlib.pyplot as plt
 
         plt.close(fig)
@@ -98,14 +118,6 @@ class TestWeightComparison:
         import matplotlib.pyplot as plt
 
         fig, ax = plt.subplots()
-        result = plot_weight_comparison(weights_dict, ax=ax)
-        assert isinstance(result, Figure)
-        plt.close(fig)
-
-    def test_single_strategy(self) -> None:
-        d = {"Only": np.array([0.5, 0.3, 0.2])}
-        fig = plot_weight_comparison(d)
-        assert isinstance(fig, Figure)
-        import matplotlib.pyplot as plt
-
+        result = plot_weight_comparison(weights_dict, backend="matplotlib", ax=ax)
+        assert isinstance(result, MplFigure)
         plt.close(fig)
