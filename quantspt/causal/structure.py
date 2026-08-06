@@ -128,12 +128,7 @@ class CausalStructureLearner:
 
         merged = {**self._extra_kwargs, **kwargs}
         discovery = self._build_discovery(merged)
-
-        expert = self._build_expert_knowledge()
-        if expert is not None:
-            discovery.fit(df, expert_knowledge=expert)
-        else:
-            discovery.fit(df)
+        discovery.fit(df)
 
         self._discovery_object = discovery
         self._adjacency_matrix = np.array(discovery.adjacency_matrix_, dtype=np.float64)
@@ -223,6 +218,8 @@ class CausalStructureLearner:
     def _build_discovery(self, extra: dict[str, Any]) -> Any:
         from pgmpy.causal_discovery import GES, PC, HillClimbSearch
 
+        expert = self._build_expert_knowledge()
+
         if self._method == "pc":
             init_kwargs: dict[str, Any] = {
                 "ci_test": self._ci_test,
@@ -231,6 +228,8 @@ class CausalStructureLearner:
             }
             if self._max_cond_vars is not None:
                 init_kwargs["max_cond_vars"] = self._max_cond_vars
+            if expert is not None:
+                init_kwargs["expert_knowledge"] = expert
             init_kwargs.update(extra)
             return PC(**init_kwargs)
 
@@ -238,6 +237,8 @@ class CausalStructureLearner:
             init_kwargs = {
                 "scoring_method": self._scoring_method,
             }
+            if expert is not None:
+                init_kwargs["expert_knowledge"] = expert
             init_kwargs.update(extra)
             return GES(**init_kwargs)
 
@@ -246,6 +247,8 @@ class CausalStructureLearner:
         }
         if self._max_indegree is not None:
             init_kwargs["max_indegree"] = self._max_indegree
+        if expert is not None:
+            init_kwargs["expert_knowledge"] = expert
         init_kwargs.update(extra)
         return HillClimbSearch(**init_kwargs)
 

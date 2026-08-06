@@ -272,10 +272,16 @@ class CausalCovarianceEstimator:
         cov: NDArray[np.float64],
         model: Any = None,
     ) -> NDArray[np.float64]:
-        """Reorder covariance to match sorted variable_names."""
+        """Reorder covariance to match sorted variable_names.
+
+        ``to_joint_gaussian()`` returns the covariance in topological
+        sort order, so we map from that to ``self._variable_names``.
+        """
+        import networkx as nx
+
         m = model if model is not None else self._model
-        jg_nodes = list(m.nodes())
-        reorder = [jg_nodes.index(n) for n in self._variable_names]
+        topo_order = list(nx.topological_sort(m))
+        reorder = [topo_order.index(n) for n in self._variable_names]
         return np.array(cov[np.ix_(reorder, reorder)], dtype=np.float64)
 
     def _simulate_under_intervention(
