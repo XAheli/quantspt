@@ -109,13 +109,20 @@ quantspt/
 |-- optimization/         SPT-native portfolio optimisation (cvxpy)
 |-- simulation/           Monte Carlo simulation engine (numba-accelerated)
 |-- backtesting/          Historical backtesting with SPT attribution
-|-- data/                 Pluggable data providers (yfinance, custom)
+|-- data/                 Pluggable data providers (CSV, Parquet, custom)
+|-- ml/                   Neural FGP, regime detection, ML covariance estimators
+|-- causal/               Causal structure learning and interventional covariance
+|-- integrations/         Sklearn transformers for SPT features
+|-- post_processing/      Weight cleaning, discrete allocation, export
+|-- _backends/            Compute backends (NumPy, Numba, JAX)
 +-- visualization/        Publication-quality plots (matplotlib, plotly)
 ```
 
 ## Documentation
 
-Full documentation is hosted at [quantspt.readthedocs.io](https://quantspt.readthedocs.io).
+API reference and guides are available in the
+[GitHub wiki](https://github.com/XAheli/quantspt/wiki).
+Full hosted documentation is planned for a future release.
 
 ## Mathematical Foundation
 
@@ -152,7 +159,9 @@ pip install quantspt
 | opt | cvxpy | `pip install "quantspt[opt]"` |
 | sim | numba | `pip install "quantspt[sim]"` |
 | gpu | jax, jaxlib | `pip install "quantspt[gpu]"` |
-| data | yfinance, pydantic | `pip install "quantspt[data]"` |
+| data | pydantic (CSV/Parquet providers) | `pip install "quantspt[data]"` |
+| ml | torch, optuna, hmmlearn, ruptures | `pip install "quantspt[ml]"` |
+| causal | pgmpy, networkx | `pip install "quantspt[causal]"` |
 | dev | pytest, mypy, ruff, pre-commit | `pip install "quantspt[dev]"` |
 | all | everything above | `pip install "quantspt[all]"` |
 
