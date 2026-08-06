@@ -91,7 +91,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/XAheli/quantspt"
-Documentation = "https://quantspt.readthedocs.io"
+Documentation = "https://github.com/XAheli/quantspt/wiki"
 Repository = "https://github.com/XAheli/quantspt"
 Changelog = "https://github.com/XAheli/quantspt/blob/main/CHANGELOG.md"
 "Bug Tracker" = "https://github.com/XAheli/quantspt/issues"
