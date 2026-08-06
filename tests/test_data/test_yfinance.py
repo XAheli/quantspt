@@ -297,6 +297,61 @@ class TestTransformData:
         panel = provider.transform_data(df, query)
         assert panel.tickers == ["AAPL"]
 
+    def test_multi_index_single_ticker_series_path(
+        self, provider: YFinanceProvider
+    ) -> None:
+        """Line 194: MultiIndex extraction yields Series for single ticker → to_frame.
+
+        In pandas 2.x, df["Close"] on a MultiIndex always returns DataFrame.
+        Older pandas/yfinance versions could return a Series here.
+        We simulate this via a thin subclass so that the actual transform_data
+        conversion logic (Series.to_frame) is exercised.
+        """
+        dates = pd.bdate_range("2023-01-01", periods=10)
+        prices = 100.0 + np.arange(10, dtype=float)
+
+        class _SingleTickerDF(pd.DataFrame):
+            """Simulates older pandas behavior: df['Close'] returns Series."""
+
+            def __getitem__(self, key):  # type: ignore[override]
+                result = super().__getitem__(key)
+                if (
+                    key == "Close"
+                    and isinstance(result, pd.DataFrame)
+                    and len(result.columns) == 1
+                ):
+                    return result.iloc[:, 0].rename("Close")
+                return result
+
+        df = _SingleTickerDF(
+            {("Close", "AAPL"): prices},
+            index=dates,
+        )
+        df.columns = pd.MultiIndex.from_tuples([("Close", "AAPL")])
+        query = provider.transform_query(
+            tickers=["AAPL"], start="2023-01-01", end="2023-12-31"
+        )
+        panel = provider.transform_data(df, query)
+        assert isinstance(panel, MarketPanel)
+        assert panel.tickers == ["AAPL"]
+        assert panel.prices.shape == (10, 1)
+
+    def test_persistent_nan_after_fill_raises(self, provider: YFinanceProvider) -> None:
+        """Lines 216-219: Column all-NaN after ffill+bfill raises DataProviderError."""
+        dates = pd.bdate_range("2023-01-01", periods=5)
+        df = pd.DataFrame(
+            {
+                "AAPL": [np.nan, np.nan, np.nan, np.nan, np.nan],
+                "MSFT": [200.0, 201.0, 202.0, 203.0, 204.0],
+            },
+            index=dates,
+        )
+        query = provider.transform_query(
+            tickers=["AAPL", "MSFT"], start="2023-01-01", end="2023-12-31"
+        )
+        with pytest.raises(DataProviderError, match="NaN"):
+            provider.transform_data(df, query)
+
 
 # ---------------------------------------------------------------------------
 # Full TET pipeline (load)
