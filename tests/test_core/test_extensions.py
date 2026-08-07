@@ -427,3 +427,27 @@ class TestCovarianceRateProcess:
         covs = np.array([np.eye(2) * 0.04])
         with pytest.raises(SPTInvariantError, match="interpolation"):
             RollingCovarianceRate(times, covs, interpolation="cubic")
+
+    def test_duplicate_times_linear_no_crash(self) -> None:
+        """Duplicate timestamps must not cause division by zero in linear interp."""
+        times = np.array([0.0, 0.5, 0.5, 1.0])
+        covs = np.array(
+            [
+                np.eye(2) * 0.04,
+                np.eye(2) * 0.09,
+                np.eye(2) * 0.09,
+                np.eye(2) * 0.16,
+            ]
+        )
+        process = RollingCovarianceRate(times, covs, interpolation="linear")
+        result = process.covariance_at(0.5)
+        assert np.all(np.isfinite(result))
+        assert_allclose(result, np.eye(2) * 0.09)
+
+    def test_all_duplicate_times_linear(self) -> None:
+        """All-identical timestamps should return a valid covariance."""
+        times = np.array([1.0, 1.0])
+        covs = np.array([np.eye(2) * 0.04, np.eye(2) * 0.09])
+        process = RollingCovarianceRate(times, covs, interpolation="linear")
+        result = process.covariance_at(1.0)
+        assert np.all(np.isfinite(result))
