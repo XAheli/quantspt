@@ -221,6 +221,58 @@ class TestCachedComputation:
         cache = CachedComputation(lambda: 1, name="x")
         assert cache.stats.hit_rate == 0.0
 
+    def test_concurrent_is_dirty_and_invalidate(self) -> None:
+        """is_dirty must not race with invalidate/get from other threads."""
+        counter = [0]
+
+        def compute():
+            counter[0] += 1
+            return counter[0]
+
+        cache = CachedComputation(compute, name="race")
+        cache.get()
+
+        errors: list[Exception] = []
+        dirty_results: list[bool] = []
+
+        def check_dirty_loop():
+            try:
+                for _ in range(200):
+                    dirty_results.append(cache.is_dirty)
+            except Exception as e:
+                errors.append(e)
+
+        def invalidate_and_get_loop():
+            try:
+                for _ in range(200):
+                    cache.invalidate()
+                    cache.get()
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=check_dirty_loop)
+        t2 = threading.Thread(target=invalidate_and_get_loop)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert len(errors) == 0
+        assert all(isinstance(d, bool) for d in dirty_results)
+
+    def test_is_dirty_uses_public_version(self) -> None:
+        """is_dirty should use dep.version (public), not dep._version."""
+        upstream = CachedComputation(lambda: 1, name="up")
+        downstream = CachedComputation(
+            lambda: upstream.get() + 1,
+            name="down",
+            dependencies=[upstream],
+        )
+        downstream.get()
+        assert not downstream.is_dirty
+        assert downstream.version == 1
+        assert upstream.version == 1
+
 
 # ---------------------------------------------------------------------------
 # ComputationCache tests
