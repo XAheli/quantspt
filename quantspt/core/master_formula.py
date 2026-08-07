@@ -76,20 +76,21 @@ def drift_integral(
     a_path: NDArray[np.float64],
     dt: float,
 ) -> float:
-    r"""Compute the drift integral ∫₀ᵀ g(t) dt via trapezoidal rule.
+    r"""Compute the drift integral ∫₀ᵀ g(t) dt via left Riemann sum.
 
     .. math::
         \int_0^T g(t)\,dt \approx \sum_{k=0}^{N-1} g(t_k) \Delta t
 
-    where g(t) is the drift process from the master formula.
+    where g(t) is the drift process from the master formula and N is the
+    number of intervals (= len(mu_path) - 1).
 
     Parameters
     ----------
     G : GeneratingFunction
         Portfolio generating function.
-    mu_path : ndarray of shape (T, n)
-        Time series of market weights.
-    a_path : ndarray of shape (T, n, n)
+    mu_path : ndarray of shape (N+1, n)
+        Time series of market weights at N+1 time points (N intervals).
+    a_path : ndarray of shape (N+1, n, n)
         Time series of covariance rate matrices.
     dt : float
         Time step between observations (in years).
@@ -108,7 +109,7 @@ def drift_integral(
     require(a_path.shape[0] == T_steps, "mu_path and a_path must have same length")
 
     total = 0.0
-    for t in range(T_steps):
+    for t in range(T_steps - 1):
         mu_t = mu_path[t]
         a_t = a_path[t]
         tau_mu_t = relative_covariance(a_t, mu_t)

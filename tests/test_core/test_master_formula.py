@@ -451,6 +451,37 @@ class TestVerifyMasterFormula:
 class TestDriftIntegral:
     """Tests for drift_integral function."""
 
+    def test_interval_count_matches_time_points_minus_one(
+        self, cov_3: np.ndarray
+    ) -> None:
+        """Drift integral must use N-1 intervals for N time points.
+
+        For N+1 time points on a constant market, the integral should
+        equal N * g_instant * dt (left Riemann sum over N intervals),
+        NOT (N+1) * g_instant * dt.
+        """
+        mu = np.array([0.5, 0.3, 0.2])
+        G = DiversityGenerator(0.5)
+        dt = 0.01
+
+        from quantspt.core.covariance import relative_covariance
+
+        tau = relative_covariance(cov_3, mu)
+        g_instant = G.drift(mu, tau)
+
+        for N in [10, 50, 100, 500]:
+            n_points = N + 1
+            mu_path = np.tile(mu, (n_points, 1))
+            a_path = np.tile(cov_3, (n_points, 1, 1))
+            result = drift_integral(G, mu_path, a_path, dt)
+            expected = N * g_instant * dt
+            assert_allclose(
+                result,
+                expected,
+                rtol=1e-12,
+                err_msg=f"N={N}: got {result:.10f}, expected {expected:.10f}",
+            )
+
     def test_requires_min_2_steps(self, cov_3: np.ndarray) -> None:
         """Need at least 2 time steps for integration."""
         mu_path = np.array([[0.5, 0.3, 0.2]])
