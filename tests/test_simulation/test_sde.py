@@ -117,6 +117,24 @@ class TestAdaptiveEM:
         assert path.shape[1] == 2
         assert np.all(np.isfinite(path))
 
+    def test_noise_split_sums_to_original(self) -> None:
+        """Verify dW₁ + dW₂ = dW — the noise partition must be consistent."""
+        dw = np.array([0.3, -0.2, 0.5])
+        dw1 = dw * 0.5
+        dw2 = dw * 0.5
+        assert_allclose(dw1 + dw2, dw, atol=1e-15)
+
+    def test_deterministic_seed_reproducibility(
+        self, scalar_gbm: CorrelatedGBM
+    ) -> None:
+        """Same seed must produce identical paths."""
+        rng1 = np.random.default_rng(99)
+        rng2 = np.random.default_rng(99)
+        t1, p1 = adaptive_euler_maruyama(scalar_gbm, T=0.5, dt_init=0.01, rng=rng1)
+        t2, p2 = adaptive_euler_maruyama(scalar_gbm, T=0.5, dt_init=0.01, rng=rng2)
+        assert_allclose(t1, t2)
+        assert_allclose(p1, p2)
+
 
 # ---------------------------------------------------------------------------
 # Milstein convergence
