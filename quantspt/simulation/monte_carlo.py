@@ -2,13 +2,15 @@
 
 Provides a composable Monte Carlo framework following the
 PathGenerator → PathPricer → Accumulator architecture.  Supports
-antithetic variates for variance reduction.
+antithetic variates and Brownian bridge path construction for
+variance reduction.
 
 Mathematical References
 -----------------------
 - Monte Carlo with antithetic variates: standard variance reduction technique
 - GBM analytical mean: E[S(T)] = S(0) exp(μT)
 - Confidence intervals via CLT
+- Brownian bridge construction: Jäckel (2002), Ch. 10
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ from .._result import SPTResult, timed_result
 from ..core.processes import (
     simulate_path,
 )
+from .brownian_bridge import BrownianBridge
 
 __all__ = [
     "MonteCarloEngine",
@@ -75,6 +78,13 @@ class MonteCarloEngine:
     is paired with its antithetic counterpart (negated Brownian increments),
     and the estimator uses the average of each pair.
 
+    When ``bridge=True``, Brownian increments are generated via
+    binary-tree bridge construction (Jäckel 2002, Ch. 10) instead of
+    sequential cumulative sampling.  This reorders the variates so that
+    the terminal value and coarse-scale features consume the first
+    random coordinates — enabling better quasi-random coupling with
+    Sobol sequences.
+
     Parameters
     ----------
     process : StochasticProcess
@@ -89,6 +99,8 @@ class MonteCarloEngine:
         Numerical scheme.  Defaults to exact (``process.evolve``).
     antithetic : bool
         Whether to use antithetic variates for variance reduction.
+    bridge : bool
+        Whether to use Brownian bridge path construction.
     confidence_level : float
         Confidence level for intervals (default 0.95).
     seed : int, optional
@@ -103,6 +115,7 @@ class MonteCarloEngine:
         n_steps: int = 252,
         discretization: object | None = None,
         antithetic: bool = False,
+        bridge: bool = False,
         confidence_level: float = 0.95,
         seed: int | None = None,
     ) -> None:
@@ -124,8 +137,16 @@ class MonteCarloEngine:
         self._n_steps = n_steps
         self._discretization = discretization
         self._antithetic = antithetic
+        self._bridge = bridge
         self._confidence_level = confidence_level
         self._rng = np.random.default_rng(seed)
+
+        self._bb: BrownianBridge | None
+        if bridge:
+            times = np.linspace(0.0, T, n_steps + 1).astype(np.float64)
+            self._bb = BrownianBridge(times)
+        else:
+            self._bb = None
 
     def run(self) -> SPTResult[MonteCarloResult]:
         """Execute the Monte Carlo simulation.
@@ -172,6 +193,7 @@ class MonteCarloEngine:
                 "T": self._T,
                 "n_steps": self._n_steps,
                 "antithetic": self._antithetic,
+                "bridge": self._bridge,
                 "confidence_level": self._confidence_level,
             },
             computation_time_ms=timer.elapsed_ms,
@@ -182,16 +204,23 @@ class MonteCarloEngine:
         n_size = self._process.size()
         terminals = np.empty((self._n_paths, n_size))
 
-        for i in range(self._n_paths):
-            path_rng = np.random.default_rng(self._rng.integers(0, 2**63))
-            _, path = simulate_path(
-                self._process,
-                T=self._T,
-                n_steps=self._n_steps,
-                rng=path_rng,
-                discretization=self._discretization,
-            )
-            terminals[i] = path[-1]
+        if self._bridge:
+            n_factors = self._process.factors()
+            dt = self._T / self._n_steps
+            for i in range(self._n_paths):
+                path_rng = np.random.default_rng(self._rng.integers(0, 2**63))
+                terminals[i] = self._simulate_with_bridge(path_rng, n_factors, dt)
+        else:
+            for i in range(self._n_paths):
+                path_rng = np.random.default_rng(self._rng.integers(0, 2**63))
+                _, path = simulate_path(
+                    self._process,
+                    T=self._T,
+                    n_steps=self._n_steps,
+                    rng=path_rng,
+                    discretization=self._discretization,
+                )
+                terminals[i] = path[-1]
 
         return terminals
 
@@ -212,12 +241,20 @@ class MonteCarloEngine:
         for i in range(self._n_paths):
             path_seed = self._rng.integers(0, 2**63)
 
-            terminal_base = self._simulate_with_noise(
-                int(path_seed), n_factors, dt, sqrt_dt, negate=False
-            )
-            terminal_anti = self._simulate_with_noise(
-                int(path_seed), n_factors, dt, sqrt_dt, negate=True
-            )
+            if self._bridge:
+                terminal_base = self._simulate_with_bridge(
+                    np.random.default_rng(int(path_seed)), n_factors, dt, negate=False
+                )
+                terminal_anti = self._simulate_with_bridge(
+                    np.random.default_rng(int(path_seed)), n_factors, dt, negate=True
+                )
+            else:
+                terminal_base = self._simulate_with_noise(
+                    int(path_seed), n_factors, dt, sqrt_dt, negate=False
+                )
+                terminal_anti = self._simulate_with_noise(
+                    int(path_seed), n_factors, dt, sqrt_dt, negate=True
+                )
 
             pair_means[i] = 0.5 * (terminal_base + terminal_anti)
 
@@ -242,6 +279,35 @@ class MonteCarloEngine:
             if negate:
                 dw = -dw
 
+            t_k = k * dt
+            if self._discretization is not None:
+                assert isinstance(self._discretization, Discretization)
+                x = self._discretization.evolve(self._process, t_k, x, dt, dw)
+            else:
+                x = self._process.evolve(t_k, x, dt, dw)
+
+        return x
+
+    def _simulate_with_bridge(
+        self,
+        rng: np.random.Generator,
+        n_factors: int,
+        dt: float,
+        negate: bool = False,
+    ) -> NDArray[np.float64]:
+        """Simulate a single path using Brownian bridge construction."""
+        from .._typing import Discretization
+
+        assert self._bb is not None
+        normals = rng.standard_normal((self._n_steps, n_factors))
+        if negate:
+            normals = -normals
+
+        increments = self._bb.increments(normals)
+
+        x = self._process.initial_values()
+        for k in range(self._n_steps):
+            dw = increments[k]
             t_k = k * dt
             if self._discretization is not None:
                 assert isinstance(self._discretization, Discretization)
