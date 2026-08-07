@@ -486,6 +486,19 @@ class TestInverseVolatilityGenerator:
         assert np.all(np.isfinite(pi_fernholz))
         assert_allclose(np.sum(pi_fernholz), 1.0, atol=1e-12)
 
+    def test_zero_variance_raises(self) -> None:
+        """Zero variance is invalid — division by zero in 1/σ²."""
+        with pytest.raises(SPTInvariantError, match="strictly positive"):
+            InverseVolatilityGenerator(variances=np.array([0.04, 0.0, 0.09]))
+
+    def test_negative_variance_raises(self) -> None:
+        with pytest.raises(SPTInvariantError, match="strictly positive"):
+            InverseVolatilityGenerator(variances=np.array([0.04, -0.01]))
+
+    def test_all_zero_variances_raises(self) -> None:
+        with pytest.raises(SPTInvariantError, match="strictly positive"):
+            InverseVolatilityGenerator(variances=np.array([0.0, 0.0]))
+
     def test_name(self) -> None:
         variances = np.array([0.04, 0.09])
         G = InverseVolatilityGenerator(variances=variances)
