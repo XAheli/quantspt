@@ -103,6 +103,49 @@ def verify_convergence_order(
     }
 
 
+def _bridge_increment(
+    parent_dw: NDArray[np.float64],
+    dt_parent: float,
+    dt_sub: float,
+    rng: np.random.Generator,
+) -> NDArray[np.float64]:
+    r"""Condition a Brownian increment onto a sub-interval via bridge.
+
+    Given a parent increment dW ~ N(0, dt_parent · I) over [t, t+dt_parent],
+    returns the conditional increment over [t, t+dt_sub] with dt_sub ≤ dt_parent.
+
+    The conditional distribution follows from the Brownian bridge:
+
+    .. math::
+
+        dW_{sub} \mid dW_{parent}
+            \sim \mathcal{N}\!\bigl(\tfrac{h}{T}\,dW_{parent},\;
+                 h\,(1 - h/T)\,I\bigr)
+
+    where h = dt_sub and T = dt_parent.
+
+    Parameters
+    ----------
+    parent_dw : ndarray
+        Total Brownian increment over the parent interval.
+    dt_parent : float
+        Duration of the parent interval.
+    dt_sub : float
+        Duration of the sub-interval (must be ≤ dt_parent).
+    rng : numpy.random.Generator
+        Source of randomness for the bridge variate.
+
+    Returns
+    -------
+    ndarray
+        Brownian increment over [t, t+dt_sub], consistent with parent_dw.
+    """
+    ratio = dt_sub / dt_parent
+    bridge_std = np.sqrt(dt_sub * (1.0 - ratio))
+    z = rng.standard_normal(parent_dw.shape)
+    return ratio * parent_dw + bridge_std * z
+
+
 def adaptive_euler_maruyama(
     process: object,
     T: float,
@@ -120,9 +163,13 @@ def adaptive_euler_maruyama(
     at dt/2 (two half-steps).  The local error estimate drives step
     acceptance/rejection.
 
-    The Brownian increment dW ~ N(0, dt·I) for the full step is split
-    into two half-interval increments via a Brownian bridge conditioned
-    on the total increment:
+    On rejection, the parent Brownian increment is *retained* and
+    conditioned onto the smaller sub-interval via a Brownian bridge,
+    preserving the martingale structure of the driving noise.  Fresh
+    noise is drawn only when advancing to a new time interval.
+
+    The half-step error estimator splits dW into two sub-increments
+    via Brownian bridge conditioning:
 
     .. math::
 
@@ -130,10 +177,7 @@ def adaptive_euler_maruyama(
         dW_1 &= dW/2 + Z \sqrt{dt}/2 \\
         dW_2 &= dW/2 - Z \sqrt{dt}/2
 
-    This ensures the correct statistical properties:
-
-    - Partition: dW₁ + dW₂ = dW  (exact)
-    - Var(dW₁) = Var(dW₂) = dt/2  (correct for half-interval)
+    This ensures dW₁ + dW₂ = dW and Var(dW_i) = dt/2.
 
     See Gaines & Lyons (1997) and Lamba et al. (2007) for adaptive
     SDE step-size control with consistent Brownian increments.
@@ -171,7 +215,8 @@ def adaptive_euler_maruyama(
 
     References
     ----------
-    Kloeden & Platen (1992), §9.1 (adaptive extension)
+    Kloeden & Platen (1992), §9.1 (adaptive extension);
+    Gaines & Lyons (1997) for noise-consistent rejection.
     """
     from ..._typing import StochasticProcess
 
@@ -194,15 +239,25 @@ def adaptive_euler_maruyama(
     dt = dt_init
     n_accepted = 0
 
+    parent_dw: NDArray[np.float64] | None = None
+    dt_parent: float = 0.0
+
     while t < T - 1e-14:
         dt = min(dt, T - t)
         dt = max(dt, dt_min)
-        sqrt_dt = np.sqrt(dt)
 
-        dw = rng.standard_normal(n_factors) * sqrt_dt
+        if parent_dw is None:
+            dt_parent = dt
+            parent_dw = rng.standard_normal(n_factors) * np.sqrt(dt_parent)
+            dw = parent_dw
+        elif dt < dt_parent:
+            dw = _bridge_increment(parent_dw, dt_parent, dt, rng)
+        else:
+            dw = parent_dw
 
         x_full = em.evolve(process, t, x, dt, dw)
 
+        sqrt_dt = np.sqrt(dt)
         z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
         dw1 = dw * 0.5 + z
         dw2 = dw * 0.5 - z
@@ -218,6 +273,8 @@ def adaptive_euler_maruyama(
             times_list.append(t)
             path_list.append(x.copy())
             n_accepted += 1
+
+            parent_dw = None
 
             if n_accepted >= max_steps:
                 break
