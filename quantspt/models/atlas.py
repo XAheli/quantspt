@@ -276,21 +276,38 @@ class FirstOrderModel(MarketModel):
         p: float,
         M: NDArray[np.float64] | None = None,
     ) -> float:
-        r"""Excess growth rate of the diversity-weighted portfolio (BFK Eq. 5.19–5.20).
+        r"""Long-term excess growth rate of the diversity-weighted portfolio.
 
-        Uses the certainty-equivalent weights if *M* is not supplied.
+        Computes the ergodic (time-averaged) excess growth rate
+        G^{ϑ(p)}_*(n) from BFK Eq. 5.19–5.20:
+
+        .. math::
+            G^{\vartheta(p)}_*(n) = \frac{g}{p}\left[
+                1 - n \cdot \frac{M_n^p}{\sum_{k=1}^n M_k^p}
+            \right]
+
+        This is the long-run average over the stationary distribution of
+        ranked market weights, NOT the instantaneous excess growth rate
+        at a single time point.  The instantaneous formula
+        γ*_π = ½ Σ π_k(1−π_k)σ²_k applies at a fixed t; this method
+        gives the time-averaged equivalent under ergodicity.
 
         Parameters
         ----------
         p : float
             Diversity parameter 0 < p < 1.
         M : ndarray of shape (n,), optional
-            Steady-state ranked market weights. If ``None``, the certainty-
-            equivalent approximation is used.
+            Steady-state ranked market weights.  If ``None``, the certainty-
+            equivalent approximation (BFK Eq. 4.12–4.15) is used.
 
         Returns
         -------
         float
+            Long-term excess growth rate G^{ϑ(p)}_*(n).
+
+        References
+        ----------
+        BFK Eq. 5.19–5.20
         """
         require(0 < p < 1, f"p must be in (0, 1), got {p}")
         if M is None:
