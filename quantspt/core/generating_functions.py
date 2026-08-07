@@ -404,6 +404,12 @@ class InverseVolatilityGenerator(GeneratingFunction):
 
     variances: NDArray[np.float64]
 
+    def __post_init__(self) -> None:
+        require(
+            bool(np.all(self.variances > 0)),
+            "All variances must be strictly positive for inverse-volatility weighting",
+        )
+
     @property
     def name(self) -> str:
         return "InverseVolatility"
