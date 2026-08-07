@@ -104,14 +104,15 @@ class CachedComputation(Generic[T]):
     @property
     def is_dirty(self) -> bool:
         """Whether the cache needs recomputation."""
-        if self._dirty:
-            return True
-        for dep in self._dependencies:
-            if dep.is_dirty:
+        with self._lock:
+            if self._dirty:
                 return True
-            if dep._version != self._dep_versions.get(dep.name, -1):
-                return True
-        return False
+            for dep in self._dependencies:
+                if dep.is_dirty:
+                    return True
+                if dep.version != self._dep_versions.get(dep.name, -1):
+                    return True
+            return False
 
     @property
     def version(self) -> int:
