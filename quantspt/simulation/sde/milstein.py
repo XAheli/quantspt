@@ -121,6 +121,18 @@ def adaptive_milstein(
     Uses step-doubling error estimation with the Milstein correction
     for improved local accuracy.
 
+    The Brownian increment dW ~ N(0, dt·I) for the full step is split
+    into two half-interval increments via a Brownian bridge conditioned
+    on the total increment:
+
+    .. math::
+
+        Z &\sim N(0, I) \\
+        dW_1 &= dW/2 + Z \sqrt{dt}/2 \\
+        dW_2 &= dW/2 - Z \sqrt{dt}/2
+
+    This ensures Var(dW₁) = Var(dW₂) = dt/2 and dW₁ + dW₂ = dW.
+
     The acceptance criterion uses mixed tolerance
     ``atol + rtol * max(|x|)`` so the step size scales with the
     solution magnitude.
@@ -186,8 +198,9 @@ def adaptive_milstein(
         dw = rng.standard_normal(n_factors) * sqrt_dt
         x_full = mil.evolve(process, t, x, dt, dw)
 
-        dw1 = dw * np.sqrt(0.5)
-        dw2 = dw * np.sqrt(0.5)
+        z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
+        dw1 = dw * 0.5 + z
+        dw2 = dw * 0.5 - z
         x_half = mil.evolve(process, t, x, dt / 2.0, dw1)
         x_double = mil.evolve(process, t + dt / 2.0, x_half, dt / 2.0, dw2)
 

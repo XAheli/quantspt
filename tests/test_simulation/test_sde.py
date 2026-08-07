@@ -118,10 +118,15 @@ class TestAdaptiveEM:
         assert np.all(np.isfinite(path))
 
     def test_noise_split_sums_to_original(self) -> None:
-        """Verify dW₁ + dW₂ = dW — the noise partition must be consistent."""
-        dw = np.array([0.3, -0.2, 0.5])
-        dw1 = dw * 0.5
-        dw2 = dw * 0.5
+        """Verify dW₁ + dW₂ = dW — the Brownian bridge partition is exact."""
+        rng = np.random.default_rng(42)
+        dt = 0.01
+        sqrt_dt = np.sqrt(dt)
+        n_factors = 3
+        dw = rng.standard_normal(n_factors) * sqrt_dt
+        z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
+        dw1 = dw * 0.5 + z
+        dw2 = dw * 0.5 - z
         assert_allclose(dw1 + dw2, dw, atol=1e-15)
 
     def test_deterministic_seed_reproducibility(
@@ -208,6 +213,121 @@ class TestAdaptiveMilstein:
         rng = np.random.default_rng(42)
         _, path = adaptive_milstein(scalar_gbm, T=0.5, dt_init=0.01, rng=rng)
         assert np.all(np.isfinite(path))
+
+
+# ---------------------------------------------------------------------------
+# Brownian bridge split statistical properties
+# ---------------------------------------------------------------------------
+
+
+class TestBrownianBridgeSplit:
+    """Verify the Brownian bridge noise split has correct statistical properties."""
+
+    N_SAMPLES = 200_000
+
+    def test_brownian_bridge_split_variance(self) -> None:
+        """Verify dW₁ and dW₂ each have correct variance dt/2."""
+        rng = np.random.default_rng(42)
+        dt = 0.04
+        sqrt_dt = np.sqrt(dt)
+        n_factors = 3
+
+        dw1_samples = np.zeros((self.N_SAMPLES, n_factors))
+        dw2_samples = np.zeros((self.N_SAMPLES, n_factors))
+
+        for i in range(self.N_SAMPLES):
+            dw = rng.standard_normal(n_factors) * sqrt_dt
+            z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
+            dw1_samples[i] = dw * 0.5 + z
+            dw2_samples[i] = dw * 0.5 - z
+
+        expected_var = dt / 2.0
+        assert_allclose(np.var(dw1_samples, axis=0), expected_var, rtol=0.02)
+        assert_allclose(np.var(dw2_samples, axis=0), expected_var, rtol=0.02)
+
+    def test_brownian_bridge_partition(self) -> None:
+        """Verify dW₁ + dW₂ = dW exactly for every sample."""
+        rng = np.random.default_rng(123)
+        dt = 0.05
+        sqrt_dt = np.sqrt(dt)
+        n_factors = 5
+
+        for _ in range(1000):
+            dw = rng.standard_normal(n_factors) * sqrt_dt
+            z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
+            dw1 = dw * 0.5 + z
+            dw2 = dw * 0.5 - z
+            assert_allclose(dw1 + dw2, dw, atol=1e-15)
+
+    def test_brownian_bridge_zero_mean(self) -> None:
+        """Verify E[dW₁] = E[dW₂] = 0."""
+        rng = np.random.default_rng(77)
+        dt = 0.04
+        sqrt_dt = np.sqrt(dt)
+        n_factors = 2
+
+        dw1_samples = np.zeros((self.N_SAMPLES, n_factors))
+        dw2_samples = np.zeros((self.N_SAMPLES, n_factors))
+
+        for i in range(self.N_SAMPLES):
+            dw = rng.standard_normal(n_factors) * sqrt_dt
+            z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
+            dw1_samples[i] = dw * 0.5 + z
+            dw2_samples[i] = dw * 0.5 - z
+
+        assert_allclose(np.mean(dw1_samples, axis=0), 0.0, atol=0.005)
+        assert_allclose(np.mean(dw2_samples, axis=0), 0.0, atol=0.005)
+
+    def test_adaptive_euler_convergence_with_bridge(
+        self, scalar_gbm: CorrelatedGBM
+    ) -> None:
+        """Verify adaptive EM with proper Brownian bridge still converges to exact GBM.
+
+        For GBM with parameters μ and σ, the exact solution at time T is:
+            S(T) = S(0) * exp((μ - σ²/2)*T + σ*W(T))
+        The adaptive scheme should converge to this with tight tolerances.
+        """
+        mu = 0.05
+        S0 = 100.0
+        T = 1.0
+        n_paths = 500
+        terminal_values = np.zeros(n_paths)
+
+        for i in range(n_paths):
+            rng = np.random.default_rng(i)
+            _, path = adaptive_euler_maruyama(
+                scalar_gbm, T=T, dt_init=0.01, rng=rng, atol=1e-5, rtol=1e-4
+            )
+            terminal_values[i] = path[-1, 0]
+
+        expected_mean = S0 * np.exp(mu * T)
+        empirical_mean = np.mean(terminal_values)
+        assert_allclose(empirical_mean, expected_mean, rtol=0.05)
+
+        assert np.all(terminal_values > 0), "GBM paths must stay positive"
+
+    def test_adaptive_milstein_convergence_with_bridge(
+        self, scalar_gbm: CorrelatedGBM
+    ) -> None:
+        """Verify adaptive Milstein with proper Brownian bridge converges."""
+        mu = 0.05
+        S0 = 100.0
+        T = 1.0
+        n_paths = 500
+        terminal_values = np.zeros(n_paths)
+
+        for i in range(n_paths):
+            rng = np.random.default_rng(i)
+            _, path = adaptive_milstein(
+                scalar_gbm, T=T, dt_init=0.01, rng=rng, atol=1e-5, rtol=1e-4
+            )
+            terminal_values[i] = path[-1, 0]
+
+        expected_mean = S0 * np.exp(mu * T)
+        empirical_mean = np.mean(terminal_values)
+        assert_allclose(empirical_mean, expected_mean, rtol=0.05)
+
+        assert np.all(terminal_values > 0), "GBM paths must stay positive"
 
 
 # ---------------------------------------------------------------------------
