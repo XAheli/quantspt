@@ -121,9 +121,12 @@ def adaptive_milstein(
     Uses step-doubling error estimation with the Milstein correction
     for improved local accuracy.
 
-    The Brownian increment dW ~ N(0, dt·I) for the full step is split
-    into two half-interval increments via a Brownian bridge conditioned
-    on the total increment:
+    On rejection, the parent Brownian increment is *retained* and
+    conditioned onto the smaller sub-interval via a Brownian bridge,
+    preserving the martingale structure of the driving noise.  Fresh
+    noise is drawn only when advancing to a new time interval.
+
+    The half-step error estimator splits dW into two sub-increments:
 
     .. math::
 
@@ -167,7 +170,8 @@ def adaptive_milstein(
 
     References
     ----------
-    Kloeden & Platen (1992), Theorem 10.3.5
+    Kloeden & Platen (1992), Theorem 10.3.5;
+    Gaines & Lyons (1997) for noise-consistent rejection.
     """
     from ..._typing import StochasticProcess
 
@@ -178,6 +182,8 @@ def adaptive_milstein(
 
     if dt_max is None:
         dt_max = dt_init * 4.0
+
+    from .euler_maruyama import _bridge_increment
 
     mil = MilsteinDiscretization(diffusion_deriv=diffusion_deriv)
     n_factors = process.factors()
@@ -190,14 +196,25 @@ def adaptive_milstein(
     dt = dt_init
     n_accepted = 0
 
+    parent_dw: NDArray[np.float64] | None = None
+    dt_parent: float = 0.0
+
     while t < T - 1e-14:
         dt = min(dt, T - t)
         dt = max(dt, dt_min)
-        sqrt_dt = np.sqrt(dt)
 
-        dw = rng.standard_normal(n_factors) * sqrt_dt
+        if parent_dw is None:
+            dt_parent = dt
+            parent_dw = rng.standard_normal(n_factors) * np.sqrt(dt_parent)
+            dw = parent_dw
+        elif dt < dt_parent:
+            dw = _bridge_increment(parent_dw, dt_parent, dt, rng)
+        else:
+            dw = parent_dw
+
         x_full = mil.evolve(process, t, x, dt, dw)
 
+        sqrt_dt = np.sqrt(dt)
         z = rng.standard_normal(n_factors) * sqrt_dt * 0.5
         dw1 = dw * 0.5 + z
         dw2 = dw * 0.5 - z
@@ -213,6 +230,8 @@ def adaptive_milstein(
             times_list.append(t)
             path_list.append(x.copy())
             n_accepted += 1
+
+            parent_dw = None
 
             if n_accepted >= max_steps:
                 break
