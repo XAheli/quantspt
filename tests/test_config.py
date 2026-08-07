@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from quantspt._config import _GLOBAL_CONFIG, get_config, set_backend
@@ -56,3 +58,24 @@ class TestSetBackend:
     def test_empty_string_raises(self) -> None:
         with pytest.raises(ValueError, match="Unknown backend"):
             set_backend("")
+
+    def test_concurrent_set_backend(self) -> None:
+        """Concurrent set_backend calls must not corrupt state."""
+        errors: list[Exception] = []
+        backends = ["numpy", "numba", "jax", "cupy"]
+
+        def switch_loop(backend: str) -> None:
+            try:
+                for _ in range(100):
+                    set_backend(backend)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=switch_loop, args=(b,)) for b in backends]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(errors) == 0
+        assert get_config().backend in {"numpy", "numba", "jax", "cupy"}
