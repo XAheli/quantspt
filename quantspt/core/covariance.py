@@ -134,8 +134,7 @@ class RollingCovarianceRate:
         """Retrieve or interpolate covariance at time t."""
         if self._interpolation == "nearest":
             idx = int(np.argmin(np.abs(self._times - t)))
-            result: NDArray[np.float64] = self._covariances[idx]
-            return result
+            return self._covariances[idx].copy()
         else:
             idx = int(np.searchsorted(self._times, t))
             if idx == 0:
