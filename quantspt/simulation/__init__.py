@@ -12,12 +12,16 @@ monte_carlo
     Monte Carlo framework with variance reduction and CI.
 market_simulator
     Simulate from any ``MarketModel``: prices, weights, ranks.
+brownian_bridge
+    Path-level Brownian bridge construction (binary-tree refinement).
 """
 
+from .brownian_bridge import BrownianBridge
 from .market_simulator import MarketSimulation, simulate_market
 from .monte_carlo import MonteCarloEngine, MonteCarloResult
 
 __all__ = [
+    "BrownianBridge",
     "MarketSimulation",
     "MonteCarloEngine",
     "MonteCarloResult",
