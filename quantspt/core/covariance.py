@@ -142,6 +142,8 @@ class RollingCovarianceRate:
             if idx >= len(self._times):
                 return self._covariances[-1].copy()
             t0, t1 = self._times[idx - 1], self._times[idx]
+            if np.isclose(t0, t1):
+                return self._covariances[idx].copy()
             alpha = (t - t0) / (t1 - t0)
             result = (1.0 - alpha) * self._covariances[
                 idx - 1
