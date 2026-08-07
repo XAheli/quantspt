@@ -66,6 +66,7 @@ site/
 
 # Benchmark outputs
 .benchmarks/
+/benchmarks/
 
 # Reference papers (kept locally, not in git)
 papers_refs/
