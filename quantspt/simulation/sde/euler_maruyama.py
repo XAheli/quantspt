@@ -120,6 +120,14 @@ def adaptive_euler_maruyama(
     at dt/2 (two half-steps).  The local error estimate drives step
     acceptance/rejection.
 
+    The Brownian increment dW for the full step is split as
+    dW₁ = dW₂ = dW/2 for the two half-steps.  This is a heuristic:
+    each half-increment has variance dt/4 (not the ideal dt/2), but
+    the resulting error estimate ``|x_full − x_double|`` is still a
+    useful order-of-magnitude proxy for local truncation error and
+    is the standard approach in many adaptive SDE libraries
+    (Gaines & Lyons 1997; see also H. Lamba et al. 2007).
+
     The acceptance criterion uses mixed tolerance
     ``atol + rtol * max(|x|)`` so the step size scales with the
     solution magnitude (essential for GBM-like processes where
@@ -185,8 +193,8 @@ def adaptive_euler_maruyama(
 
         x_full = em.evolve(process, t, x, dt, dw)
 
-        dw1 = dw * np.sqrt(0.5)
-        dw2 = dw * np.sqrt(0.5)
+        dw1 = dw * 0.5
+        dw2 = dw * 0.5
         x_half = em.evolve(process, t, x, dt / 2.0, dw1)
         x_double = em.evolve(process, t + dt / 2.0, x_half, dt / 2.0, dw2)
 
