@@ -569,7 +569,7 @@ class JaxFunctionWrapper:
         except ImportError as e:
             raise ImportError(
                 "JaxFunctionWrapper requires JAX. "
-                "Install with: pip install quantspt[gpu]"
+                "Install with: pip install quantspt[all]"
             ) from e
 
         import jax

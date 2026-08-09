@@ -601,12 +601,12 @@ class TestJaxWrapperBranches:
     ) -> None:
         """JaxFunctionWrapper raises ImportError when JAX is unavailable."""
         monkeypatch.setitem(sys.modules, "jax", None)
-        with pytest.raises(ImportError, match="quantspt\\[gpu\\]"):
+        with pytest.raises(ImportError, match="quantspt\\[all\\]"):
             wrap_jax_function(lambda mu: 1.0, n_assets=5)
 
     def test_fit_returns_self(self) -> None:
         """JaxFunctionWrapper.fit() is a no-op returning self."""
-        jax = pytest.importorskip("jax")
+        import jax
         import jax.numpy as jnp
 
         jax.config.update("jax_enable_x64", True)
@@ -621,7 +621,6 @@ class TestJaxWrapperBranches:
 
     def test_validate_non_positive_raises(self) -> None:
         """Non-positive JAX function raises SPTInvariantError."""
-        pytest.importorskip("jax")
         import jax.numpy as jnp
 
         def bad_G(mu: jnp.ndarray) -> jnp.ndarray:

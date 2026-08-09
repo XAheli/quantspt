@@ -649,7 +649,7 @@ class AutoDiffGeneratingFunction(GeneratingFunction):
             except ImportError as exc:
                 raise ImportError(
                     "JAX requested but not installed. "
-                    "Install with: pip install quantspt[gpu]"
+                    "Install with: pip install quantspt[all]"
                 ) from exc
         try:
             import jax  # noqa: F401

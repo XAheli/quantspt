@@ -28,22 +28,24 @@ class TestJaxBackendCoverage:
         from quantspt._backends.jax_backend import _require_jax
 
         monkeypatch.setitem(sys.modules, "jax", None)
-        with pytest.raises(ImportError, match="quantspt\\[gpu\\]"):
+        with pytest.raises(ImportError, match="quantspt\\[all\\]"):
             _require_jax()
 
     def test_name_property(self) -> None:
-        jax_mod = pytest.importorskip("jax")
+        import jax
+
         from quantspt._backends.jax_backend import JaxBackend
 
-        jax_mod.config.update("jax_enable_x64", True)
+        jax.config.update("jax_enable_x64", True)
         backend = JaxBackend()
         assert backend.name == "jax"
 
     def test_simulate_gbm_step(self) -> None:
-        jax_mod = pytest.importorskip("jax")
+        import jax
+
         from quantspt._backends.jax_backend import JaxBackend
 
-        jax_mod.config.update("jax_enable_x64", True)
+        jax.config.update("jax_enable_x64", True)
         backend = JaxBackend()
         rng = np.random.default_rng(42)
         n = 3
@@ -58,11 +60,12 @@ class TestJaxBackendCoverage:
         assert result.dtype == np.float64
 
     def test_covariance_shrinkage(self) -> None:
-        jax_mod = pytest.importorskip("jax")
+        import jax
+
         from quantspt._backends.jax_backend import JaxBackend
         from quantspt._backends.numpy_backend import NumpyBackend
 
-        jax_mod.config.update("jax_enable_x64", True)
+        jax.config.update("jax_enable_x64", True)
         jb = JaxBackend()
         npb = NumpyBackend()
         rng = np.random.default_rng(42)
@@ -72,12 +75,12 @@ class TestJaxBackendCoverage:
         np.testing.assert_allclose(jax_result, np_result, atol=1e-8)
 
     def test_gradient(self) -> None:
-        jax_mod = pytest.importorskip("jax")
+        import jax
         import jax.numpy as jnp
 
         from quantspt._backends.jax_backend import JaxBackend
 
-        jax_mod.config.update("jax_enable_x64", True)
+        jax.config.update("jax_enable_x64", True)
         backend = JaxBackend()
 
         def f(x: jnp.ndarray) -> jnp.ndarray:
@@ -88,12 +91,12 @@ class TestJaxBackendCoverage:
         np.testing.assert_allclose(grad, 2.0 * x, atol=1e-10)
 
     def test_hessian(self) -> None:
-        jax_mod = pytest.importorskip("jax")
+        import jax
         import jax.numpy as jnp
 
         from quantspt._backends.jax_backend import JaxBackend
 
-        jax_mod.config.update("jax_enable_x64", True)
+        jax.config.update("jax_enable_x64", True)
         backend = JaxBackend()
 
         def f(x: jnp.ndarray) -> jnp.ndarray:

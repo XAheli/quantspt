@@ -1,10 +1,12 @@
-"""JAX compute backend — GPU acceleration and automatic differentiation.
+"""JAX compute backend — JIT compilation and automatic differentiation.
 
 Provides JIT-compiled implementations of core SPT operations using JAX.
 Enables automatic gradient/Hessian computation for generating functions
-and GPU acceleration for large-scale portfolio computations.
+and optional GPU acceleration for large-scale portfolio computations.
 
-Requires the ``gpu`` extra: ``pip install quantspt[gpu]``
+Works on CPU (default) or GPU when CUDA is available.
+Install with: ``pip install quantspt[all]`` (CPU) or configure JAX
+for CUDA per https://jax.readthedocs.io/en/latest/installation.html
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ def _require_jax() -> Any:
     except ImportError as exc:
         raise ImportError(
             "JAX is required for the JAX backend. "
-            "Install with: pip install quantspt[gpu]"
+            "Install with: pip install quantspt[all]"
         ) from exc
 
 

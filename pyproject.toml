@@ -87,7 +87,7 @@ dev = [
     "hypothesis>=6.80",
 ]
 all = [
-    "quantspt[viz,opt,sim,data,dev,ml,causal]",
+    "quantspt[viz,opt,sim,gpu,data,dev,ml,causal]",
 ]
 
 [project.urls]
