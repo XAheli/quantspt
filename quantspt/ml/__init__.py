@@ -78,6 +78,14 @@ def __getattr__(name: str) -> object:
         from .neural_fgp import InputConvexNN
 
         return InputConvexNN
+    if name == "AdaptiveFGP":
+        from .adaptive_fgp import AdaptiveFGP
+
+        return AdaptiveFGP
+    if name == "AdaptiveFGPConfig":
+        from .adaptive_fgp import AdaptiveFGPConfig
+
+        return AdaptiveFGPConfig
     if name == "HMMRegimeDetector":
         from .regime import HMMRegimeDetector
 
