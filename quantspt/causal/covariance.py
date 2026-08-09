@@ -130,6 +130,9 @@ class CausalCovarianceEstimator:
         self._variable_names = sorted(df.columns)
 
         model = LinearGaussianBayesianNetwork(resolved_edges)
+        for col in df.columns:
+            if col not in model.nodes():
+                model.add_node(col)
         model.fit(df, **kwargs)
         self._model = model
         self._fitted = True

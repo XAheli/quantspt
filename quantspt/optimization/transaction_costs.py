@@ -6,13 +6,19 @@ the true net performance of portfolio strategies after trading costs.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from numpy.typing import NDArray
 
 from .._preconditions import require
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
 __all__ = [
     "net_growth_rate",
+    "optimal_rebalancing_frequency",
     "proportional_cost",
     "sqrt_market_impact",
 ]
@@ -108,6 +114,87 @@ def sqrt_market_impact(
     trade_fraction = delta_w * portfolio_value / daily_volumes
     cost_per_asset = impact_coeff * np.sqrt(trade_fraction) * delta_w
     return float(np.sum(cost_per_asset))
+
+
+def optimal_rebalancing_frequency(
+    weight_func: Callable[[NDArray[np.float64]], NDArray[np.float64]],
+    returns: NDArray[np.float64],
+    initial_weights: NDArray[np.float64],
+    *,
+    cost_bps: float = 10.0,
+    candidate_days: Sequence[int] | None = None,
+) -> dict[str, int | float | dict[int, float]]:
+    """Find the rebalancing frequency that maximizes net-of-cost return.
+
+    Runs a backtest at each candidate frequency and returns the one
+    with the highest annualised net return, solving the "break-even
+    frequency" problem automatically.
+
+    Parameters
+    ----------
+    weight_func : callable
+        ``mu → weights`` (e.g. ``DiversityGenerator(p=0.5).weights``).
+    returns : ndarray of shape (T, n)
+        Asset return series (1+r per period).
+    initial_weights : ndarray of shape (n,)
+        Starting market weights.
+    cost_bps : float
+        Proportional trading cost in basis points.
+    candidate_days : sequence of int, optional
+        Rebalancing periods in trading days to evaluate.
+        Defaults to ``[1, 5, 21, 63]`` (daily → quarterly).
+
+    Returns
+    -------
+    dict
+        ``{"optimal_days": int, "optimal_net_return": float,
+           "all_results": {days: net_return, ...}}``.
+    """
+
+    from ..backtesting.engine import BacktestConfig, BacktestEngine
+    from ..backtesting.execution import ProportionalCostExecution
+    from ..backtesting.rebalancing import CalendarRebalancer, Frequency
+
+    if candidate_days is None:
+        candidate_days = [1, 5, 21, 63]
+
+    freq_map = {
+        1: Frequency.DAILY,
+        5: Frequency.WEEKLY,
+        21: Frequency.MONTHLY,
+        63: Frequency.QUARTERLY,
+    }
+
+    n_years = len(returns) / 252.0
+    best_days = candidate_days[0]
+    best_net = -np.inf
+    all_results: dict[int, float] = {}
+
+    for days in candidate_days:
+        freq = freq_map.get(days)
+        if freq is None:
+            msg = f"Unsupported frequency {days}; use 1, 5, 21, or 63"
+            raise ValueError(msg)
+        engine = BacktestEngine(
+            weight_func=weight_func,
+            returns=returns,
+            initial_weights=initial_weights,
+            rebalancer=CalendarRebalancer(freq),
+            execution=ProportionalCostExecution(cost_bps=cost_bps),
+            config=BacktestConfig(initial_value=1.0),
+        )
+        result = engine.run().data
+        ann_net = (result.log_relative_return() - result.total_cost()) / n_years
+        all_results[days] = ann_net
+        if ann_net > best_net:
+            best_net = ann_net
+            best_days = days
+
+    return {
+        "optimal_days": best_days,
+        "optimal_net_return": best_net,
+        "all_results": all_results,
+    }
 
 
 def net_growth_rate(
