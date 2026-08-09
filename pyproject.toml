@@ -121,6 +121,7 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:pkg_resources",
+    "ignore:The NumPy module was reloaded:UserWarning",
 ]
 
 [tool.mypy]
