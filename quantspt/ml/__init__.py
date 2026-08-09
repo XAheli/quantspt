@@ -47,16 +47,23 @@ from .wrappers import (
 )
 
 __all__ = [
+    # Conditional FGP (lazy)
+    "BoundaryRobustnessRegularizer",
     # Wrappers
     "CallableWrapper",
+    "ConditionalFGPConfig",
     # Protocols
+    "CovarianceConditionalFGP",
     "CovarianceEstimator",
+    "CovarianceFeatureExtractor",
     "GeneratingFunctionModel",
     "JaxFunctionWrapper",
     "LearnedGeneratingFunction",
     "RegimeDetector",
     "SklearnWrapper",
     "TorchModelWrapper",
+    "cost_optimal_p",
+    "optimal_p_for_cost_level",
     "wrap_callable",
     "wrap_jax_function",
     "wrap_sklearn_estimator",
@@ -86,6 +93,30 @@ def __getattr__(name: str) -> object:
         from .adaptive_fgp import AdaptiveFGPConfig
 
         return AdaptiveFGPConfig
+    if name == "CovarianceConditionalFGP":
+        from .conditional_fgp import CovarianceConditionalFGP
+
+        return CovarianceConditionalFGP
+    if name == "ConditionalFGPConfig":
+        from .conditional_fgp import ConditionalFGPConfig
+
+        return ConditionalFGPConfig
+    if name == "CovarianceFeatureExtractor":
+        from .conditional_fgp import CovarianceFeatureExtractor
+
+        return CovarianceFeatureExtractor
+    if name == "BoundaryRobustnessRegularizer":
+        from .conditional_fgp import BoundaryRobustnessRegularizer
+
+        return BoundaryRobustnessRegularizer
+    if name == "cost_optimal_p":
+        from .conditional_fgp import cost_optimal_p
+
+        return cost_optimal_p
+    if name == "optimal_p_for_cost_level":
+        from .conditional_fgp import optimal_p_for_cost_level
+
+        return optimal_p_for_cost_level
     if name == "HMMRegimeDetector":
         from .regime import HMMRegimeDetector
 
