@@ -19,6 +19,7 @@ from typing import Protocol, runtime_checkable
 import numpy as np
 from numpy.typing import NDArray
 
+from .._config import backend_dispatch
 from .._preconditions import require
 
 __all__ = [
@@ -155,6 +156,7 @@ class RollingCovarianceRate:
         return self._covariances.shape[1]
 
 
+@backend_dispatch
 def relative_covariance(
     a: NDArray[np.float64],
     pi: NDArray[np.float64],
@@ -223,6 +225,7 @@ def relative_covariance(
     return tau
 
 
+@backend_dispatch
 def portfolio_variance(
     a: NDArray[np.float64],
     pi: NDArray[np.float64],

@@ -123,6 +123,14 @@ def get_backend(name: str | None = None) -> Backend:
             from .numpy_backend import NumpyBackend
 
             _registry["numpy"] = NumpyBackend()
+        elif target == "jax":
+            from .jax_backend import JaxBackend
+
+            _registry["jax"] = JaxBackend()
+        elif target == "numba":
+            from .numba_backend import NumbaBackend
+
+            _registry["numba"] = NumbaBackend()
         else:
             raise KeyError(
                 f"Backend '{target}' not registered. "

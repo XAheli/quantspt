@@ -19,6 +19,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
+from .._config import backend_dispatch
 from .._preconditions import require
 from .covariance import portfolio_variance
 
@@ -34,6 +35,7 @@ __all__ = [
 ]
 
 
+@backend_dispatch
 def excess_growth_rate(
     pi: NDArray[np.float64],
     a: NDArray[np.float64],
