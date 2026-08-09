@@ -9,9 +9,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("hmmlearn")
-pytest.importorskip("ruptures")
-
 from quantspt.ml.regime import ChangepointDetector, HMMRegimeDetector
 
 
@@ -129,6 +126,80 @@ class TestHMMRegimeDetector:
         """n_regimes property returns configured value."""
         detector = HMMRegimeDetector(n_regimes=3)
         assert detector.n_regimes == 3
+
+
+# ---------------------------------------------------------------------------
+# Deterministic HMM Test — exact assertions from fixed seed
+# ---------------------------------------------------------------------------
+
+
+class TestHMMDeterministic:
+    """Deterministic HMM test with known synthetic regime structure.
+
+    Uses np.random.default_rng(42) for data and random_state=42 for the HMM.
+    The two regimes are 10σ apart, guaranteeing perfect classification.
+    All assertions are exact given these seeds.
+    """
+
+    @staticmethod
+    def _make_data() -> np.ndarray:
+        """Synthetic data: regime A (mean=0.3) then regime B (mean=0.8), switch at t=200."""
+        rng = np.random.default_rng(42)
+        regime_a = rng.normal(loc=0.3, scale=0.05, size=(200, 1))
+        regime_b = rng.normal(loc=0.8, scale=0.05, size=(200, 1))
+        return np.vstack([regime_a, regime_b]).astype(np.float64)
+
+    def test_perfect_regime_recovery(self) -> None:
+        """HMM assigns correct labels to all 400 samples with 10σ separation."""
+        data = self._make_data()
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(data)
+        labels = detector.predict(data)
+
+        regime_a_label = int(np.bincount(labels[:200]).argmax())
+        regime_b_label = int(np.bincount(labels[200:]).argmax())
+
+        assert regime_a_label != regime_b_label
+        assert (labels[:200] == regime_a_label).all(), "First half must be regime A"
+        assert (labels[200:] == regime_b_label).all(), "Second half must be regime B"
+
+    def test_transition_matrix_exact(self) -> None:
+        """Transition matrix is exactly row-stochastic with high self-persistence."""
+        data = self._make_data()
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(data)
+        P = detector.transition_matrix
+
+        assert P.shape == (2, 2)
+        np.testing.assert_allclose(P.sum(axis=1), 1.0, atol=1e-10)
+        assert np.all(P >= 0)
+        assert P[0, 0] > 0.99, f"P[0,0]={P[0, 0]:.6f}, expected > 0.99"
+        assert P[1, 1] > 0.99, f"P[1,1]={P[1, 1]:.6f}, expected > 0.99"
+
+    def test_predict_proba_confident_at_boundaries(self) -> None:
+        """Posterior probabilities are near 1.0 at regime boundaries."""
+        data = self._make_data()
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(data)
+        proba = detector.predict_proba(data)
+
+        regime_a_label = int(np.bincount(detector.predict(data)[:200]).argmax())
+        regime_b_label = int(np.bincount(detector.predict(data)[200:]).argmax())
+
+        assert proba[199, regime_a_label] > 0.99
+        assert proba[200, regime_b_label] > 0.99
+        np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-10)
+
+    def test_forecast_converges_to_stationary(self) -> None:
+        """Long-horizon forecast converges to the stationary distribution."""
+        data = self._make_data()
+        detector = HMMRegimeDetector(n_regimes=2, random_state=42)
+        detector.fit(data)
+        forecasts = detector.forecast_diversity(horizon=1000)
+
+        np.testing.assert_allclose(forecasts.sum(axis=1), 1.0, atol=1e-10)
+        assert np.all(forecasts >= 0)
+        assert np.all(np.isfinite(forecasts))
 
 
 # ---------------------------------------------------------------------------
