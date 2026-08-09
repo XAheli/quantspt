@@ -176,7 +176,10 @@ def _setup_numba_backend():
 
 
 def _setup_jax_backend():
-    from quantspt._backends.jax_backend import JaxBackend
+    try:
+        from quantspt._backends.jax_backend import JaxBackend
+    except ImportError:
+        return None
 
     _reset_registry()
     register_backend("numpy", NumpyBackend())
@@ -224,23 +227,30 @@ class TestBackendComparison:
             t_nb, val_nb = _time_fn(be_nb.excess_growth_rate, pi, cov, n_repeats=5)
             row["numba"] = t_nb
 
-            # jax (warmup first call)
+            # jax (warmup first call) -- optional
             be_jax = _setup_jax_backend()
-            be_jax.excess_growth_rate(pi, cov)  # JIT warmup
-            t_jax, val_jax = _time_fn(be_jax.excess_growth_rate, pi, cov, n_repeats=5)
-            row["jax"] = t_jax
+            if be_jax is not None:
+                be_jax.excess_growth_rate(pi, cov)  # JIT warmup
+                t_jax, val_jax = _time_fn(
+                    be_jax.excess_growth_rate, pi, cov, n_repeats=5
+                )
+                row["jax"] = t_jax
 
             # verify correctness
             assert abs(val_np - val_nb) < 1e-6, f"numba mismatch at n={n}"
-            assert abs(val_np - val_jax) < 1e-4, f"jax mismatch at n={n}"
+            if be_jax is not None:
+                assert abs(val_np - val_jax) < 1e-4, f"jax mismatch at n={n}"
 
             results[n] = row
             speedup_nb = t_np / t_nb if t_nb > 0 else float("inf")
-            speedup_jax = t_np / t_jax if t_jax > 0 else float("inf")
+            jax_info = "SKIPPED"
+            if "jax" in row:
+                sp = t_np / row["jax"] if row["jax"] > 0 else float("inf")
+                jax_info = f"{row['jax'] * 1000:.3f}ms ({sp:.1f}x)"
             print(
                 f"\n  g* n={n:>5d}:  numpy={t_np * 1000:.3f}ms  "
                 f"numba={t_nb * 1000:.3f}ms ({speedup_nb:.1f}x)  "
-                f"jax={t_jax * 1000:.3f}ms ({speedup_jax:.1f}x)"
+                f"jax={jax_info}"
             )
 
         _reset_registry()
@@ -262,20 +272,27 @@ class TestBackendComparison:
             row["numba"] = t_nb
 
             be_jax = _setup_jax_backend()
-            be_jax.relative_covariance(cov, pi)  # warmup
-            t_jax, tau_jax = _time_fn(be_jax.relative_covariance, cov, pi, n_repeats=5)
-            row["jax"] = t_jax
+            if be_jax is not None:
+                be_jax.relative_covariance(cov, pi)  # warmup
+                t_jax, tau_jax = _time_fn(
+                    be_jax.relative_covariance, cov, pi, n_repeats=5
+                )
+                row["jax"] = t_jax
 
             assert np.allclose(tau_np, tau_nb, atol=1e-6), f"numba mismatch at n={n}"
-            assert np.allclose(tau_np, tau_jax, atol=1e-4), f"jax mismatch at n={n}"
+            if be_jax is not None:
+                assert np.allclose(tau_np, tau_jax, atol=1e-4), f"jax mismatch at n={n}"
 
             results[n] = row
             speedup_nb = t_np / t_nb if t_nb > 0 else float("inf")
-            speedup_jax = t_np / t_jax if t_jax > 0 else float("inf")
+            jax_info = "SKIPPED"
+            if "jax" in row:
+                sp = t_np / row["jax"] if row["jax"] > 0 else float("inf")
+                jax_info = f"{row['jax'] * 1000:.3f}ms ({sp:.1f}x)"
             print(
                 f"\n  t^pi n={n:>5d}:  numpy={t_np * 1000:.3f}ms  "
                 f"numba={t_nb * 1000:.3f}ms ({speedup_nb:.1f}x)  "
-                f"jax={t_jax * 1000:.3f}ms ({speedup_jax:.1f}x)"
+                f"jax={jax_info}"
             )
 
         _reset_registry()
@@ -296,17 +313,22 @@ class TestBackendComparison:
             row["numba"] = t_nb
 
             be_jax = _setup_jax_backend()
-            be_jax.diversity_weights(pi, 0.5)  # warmup
-            t_jax, w_jax = _time_fn(be_jax.diversity_weights, pi, 0.5, n_repeats=5)
-            row["jax"] = t_jax
+            if be_jax is not None:
+                be_jax.diversity_weights(pi, 0.5)  # warmup
+                t_jax, w_jax = _time_fn(be_jax.diversity_weights, pi, 0.5, n_repeats=5)
+                row["jax"] = t_jax
 
             assert np.allclose(w_np, w_nb, atol=1e-8)
-            assert np.allclose(w_np, w_jax, atol=1e-4)
+            if be_jax is not None:
+                assert np.allclose(w_np, w_jax, atol=1e-4)
 
             results[n] = row
+            jax_info = "SKIPPED"
+            if "jax" in row:
+                jax_info = f"{row['jax'] * 1000:.3f}ms"
             print(
                 f"\n  div_w n={n:>5d}:  numpy={t_np * 1000:.3f}ms  "
-                f"numba={t_nb * 1000:.3f}ms  jax={t_jax * 1000:.3f}ms"
+                f"numba={t_nb * 1000:.3f}ms  jax={jax_info}"
             )
 
         _reset_registry()
@@ -490,15 +512,19 @@ def test_generate_benchmark_report():
         row["numba"] = t_nb
 
         be_jax = _setup_jax_backend()
-        be_jax.excess_growth_rate(pi, cov)  # warmup
-        t_jax, _ = _time_fn(be_jax.excess_growth_rate, pi, cov, n_repeats=5)
-        row["jax"] = t_jax
+        if be_jax is not None:
+            be_jax.excess_growth_rate(pi, cov)  # warmup
+            t_jax, _ = _time_fn(be_jax.excess_growth_rate, pi, cov, n_repeats=5)
+            row["jax"] = t_jax
 
         backend_egr.append(row)
+        jax_str = "SKIPPED"
+        if "jax" in row:
+            jax_str = f"{_fmt_time(row['jax']):>8s} ({t_np / row['jax']:.1f}x)"
         print(
             f"  n={n:>5d}  numpy={_fmt_time(t_np):>8s}  "
             f"numba={_fmt_time(t_nb):>8s} ({t_np / t_nb:.1f}x)  "
-            f"jax={_fmt_time(t_jax):>8s} ({t_np / t_jax:.1f}x)"
+            f"jax={jax_str}"
         )
 
     print("\n--- Backend Comparison: t^pi ---")
@@ -519,15 +545,19 @@ def test_generate_benchmark_report():
         row["numba"] = t_nb
 
         be_jax = _setup_jax_backend()
-        be_jax.relative_covariance(cov, pi)
-        t_jax, _ = _time_fn(be_jax.relative_covariance, cov, pi, n_repeats=5)
-        row["jax"] = t_jax
+        if be_jax is not None:
+            be_jax.relative_covariance(cov, pi)
+            t_jax, _ = _time_fn(be_jax.relative_covariance, cov, pi, n_repeats=5)
+            row["jax"] = t_jax
 
         backend_rcov.append(row)
+        jax_str = "SKIPPED"
+        if "jax" in row:
+            jax_str = f"{_fmt_time(row['jax']):>8s} ({t_np / row['jax']:.1f}x)"
         print(
             f"  n={n:>5d}  numpy={_fmt_time(t_np):>8s}  "
             f"numba={_fmt_time(t_nb):>8s} ({t_np / t_nb:.1f}x)  "
-            f"jax={_fmt_time(t_jax):>8s} ({t_np / t_jax:.1f}x)"
+            f"jax={jax_str}"
         )
 
     _reset_registry()
@@ -642,39 +672,50 @@ def _write_performance_md(results: dict) -> None:
 
 
 def _write_backend_md(results: dict) -> None:
+    has_jax = any("jax" in r for r in results["backend_egr"])
+    title_suffix = " vs JAX" if has_jax else ""
+    warmup_note = " and JAX" if has_jax else ""
+
     lines = [
-        "# Backend Comparison: NumPy vs Numba vs JAX",
+        f"# Backend Comparison: NumPy vs Numba{title_suffix}",
         "",
         f"Generated: {time.strftime('%Y-%m-%d %H:%M:%S UTC', time.gmtime())}",
         "",
-        "Numba and JAX timings exclude JIT warmup (first call).",
+        f"Numba{warmup_note} timings exclude JIT warmup (first call).",
         "",
         "## Excess Growth Rate (g*)",
         "",
-        "| n | NumPy | Numba | Speedup | JAX | Speedup |",
-        "|---|-------|-------|---------|-----|---------|",
     ]
 
+    def _table_header() -> list[str]:
+        if has_jax:
+            return [
+                "| n | NumPy | Numba | Speedup | JAX | Speedup |",
+                "|---|-------|-------|---------|-----|---------|",
+            ]
+        return [
+            "| n | NumPy | Numba | Speedup |",
+            "|---|-------|-------|---------|",
+        ]
+
+    def _table_row(r: dict) -> str:
+        t_np, t_nb = r["numpy"], r["numba"]
+        row_str = (
+            f"| {r['n']} | {_fmt_time(t_np)} | {_fmt_time(t_nb)} | {t_np / t_nb:.1f}x"
+        )
+        if "jax" in r:
+            t_jax = r["jax"]
+            row_str += f" | {_fmt_time(t_jax)} | {t_np / t_jax:.1f}x"
+        row_str += " |"
+        return row_str
+
+    lines.extend(_table_header())
     for r in results["backend_egr"]:
-        t_np, t_nb, t_jax = r["numpy"], r["numba"], r["jax"]
-        lines.append(
-            f"| {r['n']} | {_fmt_time(t_np)} | {_fmt_time(t_nb)} | "
-            f"{t_np / t_nb:.1f}x | {_fmt_time(t_jax)} | {t_np / t_jax:.1f}x |"
-        )
+        lines.append(_table_row(r))
 
-    lines += [
-        "",
-        "## Relative Covariance (t^pi)",
-        "",
-        "| n | NumPy | Numba | Speedup | JAX | Speedup |",
-        "|---|-------|-------|---------|-----|---------|",
-    ]
-
+    lines += ["", "## Relative Covariance (t^pi)", ""]
+    lines.extend(_table_header())
     for r in results["backend_rcov"]:
-        t_np, t_nb, t_jax = r["numpy"], r["numba"], r["jax"]
-        lines.append(
-            f"| {r['n']} | {_fmt_time(t_np)} | {_fmt_time(t_nb)} | "
-            f"{t_np / t_nb:.1f}x | {_fmt_time(t_jax)} | {t_np / t_jax:.1f}x |"
-        )
+        lines.append(_table_row(r))
 
     (BENCHMARKS_DIR / "backend_comparison.md").write_text("\n".join(lines) + "\n")
