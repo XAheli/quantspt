@@ -21,6 +21,7 @@ References
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -29,6 +30,8 @@ from numpy.typing import NDArray
 
 from ..core.generating_functions import GeneratingFunction, fernholz_weights
 from ._protocols import LearnedGeneratingFunction
+
+_log = logging.getLogger(__name__)
 
 
 def _require_torch() -> None:
@@ -76,6 +79,8 @@ class NeuralFGPConfig:
         Constant added to ensure G_θ > 0.
     early_stopping_patience : int
         Stop if loss doesn't improve for this many epochs.
+    min_epochs : int
+        Minimum epochs before early stopping can trigger.
     device : str
         PyTorch device: 'cpu', 'cuda', 'mps'.
     seed : int | None
@@ -84,23 +89,38 @@ class NeuralFGPConfig:
         Maximum gradient norm for clipping.
     walk_forward : bool
         If True, use walk-forward validation (arXiv:2506.19715 §3.2.1).
+    warm_start : bool
+        Pre-train ICNN to approximate a classical diversity generator
+        before main training.  Gives the network a head start near a
+        known-good generating function.
+    warm_start_p : float
+        Diversity exponent for the warm-start target.
+    warm_start_epochs : int
+        Pre-training epochs for warm-start.
+    warm_start_lr : float
+        Learning rate during warm-start pre-training.
     """
 
     hidden_dims: list[int] = field(default_factory=lambda: [64, 64, 32])
     activation: str = "softplus"
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-4
     optimizer: str = "adam"
     optimizer_kwargs: dict[str, Any] = field(default_factory=dict)
     epochs: int = 500
     train_window: int = 200
     eval_window: int = 20
-    weight_decay: float = 1e-4
+    weight_decay: float = 1e-6
     positivity_offset: float = 1.0
-    early_stopping_patience: int = 20
+    early_stopping_patience: int = 30
+    min_epochs: int = 50
     device: str = "cpu"
     seed: int | None = None
     gradient_clip_norm: float = 1.0
     walk_forward: bool = True
+    warm_start: bool = True
+    warm_start_p: float = 0.5
+    warm_start_epochs: int = 500
+    warm_start_lr: float = 1e-2
 
 
 def _build_optimizer(params: Any, config: NeuralFGPConfig) -> Any:
@@ -427,6 +447,71 @@ class NeuralFGP:
         if self._network is not None and hasattr(self._network, "enforce_constraints"):
             self._network.enforce_constraints()
 
+    def _warm_start_from_diversity(self) -> None:
+        """Pre-train ICNN to approximate a classical diversity generator.
+
+        Targets f(μ) such that −f(μ) + offset ≈ (Σ μᵢ^p)^{1/p}, the
+        diversity generating function.  This gives the ICNN a head start
+        near a known-good solution so that main training only needs to
+        IMPROVE rather than discover structure from scratch.
+
+        The positivity offset is set dynamically so that the ICNN target
+        values are centred near zero (regardless of the number of assets).
+        For n assets, the diversity generator G_p(μ) ≈ n^{(1-p)/p} on
+        the uniform simplex, which can be >> 1.  Setting offset = 1.2 ×
+        max(G_p) keeps the ICNN targets in a learnable range.
+        """
+        import torch
+
+        cfg = self._config
+        net = self._network
+        assert net is not None
+        p = cfg.warm_start_p
+        n = self._n_assets
+
+        alpha_calib = np.random.dirichlet(np.ones(n), size=512)
+        alpha_calib = np.clip(alpha_calib, 1e-6, None)
+        alpha_calib /= alpha_calib.sum(axis=1, keepdims=True)
+        calib_vals = np.sum(alpha_calib**p, axis=1) ** (1.0 / p)
+        offset = float(np.max(calib_vals)) * 1.2
+        cfg.positivity_offset = offset
+
+        _log.info(
+            "Warm-starting ICNN from DiversityGenerator(p=%.2f), "
+            "%d epochs, lr=%.1e, dynamic offset=%.4f",
+            p,
+            cfg.warm_start_epochs,
+            cfg.warm_start_lr,
+            offset,
+        )
+
+        ws_opt = torch.optim.Adam(net.parameters(), lr=cfg.warm_start_lr)
+
+        for _epoch in range(cfg.warm_start_epochs):
+            alpha = np.random.dirichlet(np.ones(n), size=256)
+            alpha = np.clip(alpha, 1e-6, None)
+            alpha /= alpha.sum(axis=1, keepdims=True)
+            mu_batch = torch.tensor(alpha, dtype=torch.float32, device=cfg.device)
+
+            with torch.no_grad():
+                mu_np = mu_batch.cpu().numpy()
+                mu_p = mu_np**p
+                diversity_vals = np.sum(mu_p, axis=1) ** (1.0 / p)
+                target_f = torch.tensor(
+                    offset - diversity_vals,
+                    dtype=torch.float32,
+                    device=cfg.device,
+                )
+
+            f_pred = net(mu_batch).squeeze(-1)
+            loss = torch.nn.functional.mse_loss(f_pred, target_f)
+
+            ws_opt.zero_grad()
+            loss.backward()
+            ws_opt.step()
+
+        _log.info("Warm-start complete, final MSE=%.6f", loss.item())
+
     def fit(
         self,
         market_weights: NDArray[np.float64],
@@ -455,6 +540,9 @@ class NeuralFGP:
         T, n = market_weights.shape
         self._n_assets = n
         self.setup(market_weights)
+
+        if self._config.warm_start and self._user_network is None:
+            self._warm_start_from_diversity()
 
         if returns is None:
             returns = market_weights[1:] / market_weights[:-1]
@@ -567,8 +655,9 @@ class NeuralFGP:
 
     def _should_early_stop(self) -> bool:
         patience = self._config.early_stopping_patience
+        min_epochs = self._config.min_epochs
         vl = self._training_history["val_loss"]
-        if len(vl) < patience + 1:
+        if len(vl) < max(patience + 1, min_epochs):
             return False
         return min(vl[-patience:]) >= min(vl[:-patience])
 
