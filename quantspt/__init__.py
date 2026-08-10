@@ -47,6 +47,7 @@ from quantspt.models import (
     VolatilityStabilizedMarket,
 )
 from quantspt.optimization import ConstraintSet, optimize_growth_rate
+from quantspt.strategies import GammaGradientStrategy
 
 __all__ = [
     "AtlasModel",
@@ -60,6 +61,7 @@ __all__ = [
     "DiversityGenerator",
     "EntropyGenerator",
     "FirstOrderModel",
+    "GammaGradientStrategy",
     "GeneratingFunction",
     "MarketModel",
     "ModifiedEntropyGenerator",
