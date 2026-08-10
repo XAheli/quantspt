@@ -1,30 +1,27 @@
 """Machine Learning extensions for Stochastic Portfolio Theory.
 
-This package provides ML-powered implementations of SPT constructs:
-
-- **Neural FGP**: Learn generating functions via Input Convex Neural Networks
-  (arXiv:2506.19715, Monoyios & Pricilia 2025)
+Production-ready modules
+------------------------
 - **Wrappers**: Adapt any model (PyTorch, sklearn, callable) to SPT
 - **Losses**: Composable loss functions for FGP training
 - **Regime Detection**: HMM and changepoint-based market regime identification
 - **Covariance Estimation**: Factor models and RMT denoising
 
-All modules are optional — install with ``pip install quantspt[ml]``.
+Experimental / research modules (moved to ``quantspt.experimental``)
+---------------------------------------------------------------------
+- **NeuralFGP**, **AdaptiveFGP**, **CovarianceConditionalFGP**
 
-Quick Start
------------
->>> from quantspt.ml import NeuralFGP, wrap_torch_model, wrap_callable
->>>
->>> # Option A: Use our built-in ICNN
->>> model = NeuralFGP(n_assets=5)
->>> model.fit(market_weights, returns=returns)
->>> G = model.to_generating_function()
->>>
->>> # Option B: Wrap any PyTorch model
->>> gf = wrap_torch_model(my_custom_nn, n_assets=5)
->>>
->>> # Option C: Wrap a plain function
->>> gf = wrap_callable(lambda mu: sum(mu**0.5))
+Neural generating functions are a research direction.  Empirical
+investigation on 50 S&P 500 stocks (2020–2026) showed that the optimal
+generating-function parameter is unpredictable (lag-1 autocorrelation ~0)
+and requires ~100+ years of data to distinguish adjacent values at 80%
+power.  **For production use, prefer ``DiversityGenerator`` with universe
+selection via ``quantspt.universe.SPTUniverseSelector``.**
+
+These classes are still importable from ``quantspt.ml`` for backward
+compatibility, but canonical imports are from ``quantspt.experimental``.
+
+All modules are optional — install with ``pip install quantspt[ml]``.
 """
 
 from __future__ import annotations
@@ -72,51 +69,58 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """Lazy-load heavy submodules to avoid importing torch at package level."""
+    """Lazy-load heavy submodules to avoid importing torch at package level.
+
+    Neural/adaptive/conditional FGP classes have moved to
+    ``quantspt.experimental`` but remain importable here for backward
+    compatibility.
+    """
+    # --- Experimental (backward-compat re-exports) ---
     if name == "NeuralFGP":
-        from .neural_fgp import NeuralFGP
+        from ..experimental.neural_fgp import NeuralFGP
 
         return NeuralFGP
     if name == "NeuralFGPConfig":
-        from .neural_fgp import NeuralFGPConfig
+        from ..experimental.neural_fgp import NeuralFGPConfig
 
         return NeuralFGPConfig
     if name == "InputConvexNN":
-        from .neural_fgp import InputConvexNN
+        from ..experimental.neural_fgp import InputConvexNN
 
         return InputConvexNN
     if name == "AdaptiveFGP":
-        from .adaptive_fgp import AdaptiveFGP
+        from ..experimental.adaptive_fgp import AdaptiveFGP
 
         return AdaptiveFGP
     if name == "AdaptiveFGPConfig":
-        from .adaptive_fgp import AdaptiveFGPConfig
+        from ..experimental.adaptive_fgp import AdaptiveFGPConfig
 
         return AdaptiveFGPConfig
     if name == "CovarianceConditionalFGP":
-        from .conditional_fgp import CovarianceConditionalFGP
+        from ..experimental.conditional_fgp import CovarianceConditionalFGP
 
         return CovarianceConditionalFGP
     if name == "ConditionalFGPConfig":
-        from .conditional_fgp import ConditionalFGPConfig
+        from ..experimental.conditional_fgp import ConditionalFGPConfig
 
         return ConditionalFGPConfig
     if name == "CovarianceFeatureExtractor":
-        from .conditional_fgp import CovarianceFeatureExtractor
+        from ..experimental.conditional_fgp import CovarianceFeatureExtractor
 
         return CovarianceFeatureExtractor
     if name == "BoundaryRobustnessRegularizer":
-        from .conditional_fgp import BoundaryRobustnessRegularizer
+        from ..experimental.conditional_fgp import BoundaryRobustnessRegularizer
 
         return BoundaryRobustnessRegularizer
     if name == "cost_optimal_p":
-        from .conditional_fgp import cost_optimal_p
+        from ..experimental.conditional_fgp import cost_optimal_p
 
         return cost_optimal_p
     if name == "optimal_p_for_cost_level":
-        from .conditional_fgp import optimal_p_for_cost_level
+        from ..experimental.conditional_fgp import optimal_p_for_cost_level
 
         return optimal_p_for_cost_level
+    # --- Production modules ---
     if name == "HMMRegimeDetector":
         from .regime import HMMRegimeDetector
 
