@@ -76,6 +76,9 @@ REVAMP_PLAN.md
 ML_INTEGRATION_PLAN.md
 IMPLEMENTATION_STATUS.md
 
+# Research experiments (local only)
+research/
+
 # Environment
 .env
 .env.local
