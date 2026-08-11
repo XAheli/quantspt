@@ -26,7 +26,7 @@ __all__ = [
 
 def _require_vectorbt() -> Any:
     try:
-        import vectorbt as vbt
+        import vectorbt as vbt  # type: ignore[import-not-found]
 
         return vbt
     except ImportError as exc:
@@ -37,7 +37,7 @@ def _require_vectorbt() -> Any:
 
 def _require_backtrader() -> Any:
     try:
-        import backtrader as bt
+        import backtrader as bt  # type: ignore[import-not-found]
 
         return bt
     except ImportError as exc:

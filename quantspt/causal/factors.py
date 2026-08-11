@@ -213,7 +213,9 @@ class CausalFactorModel:
 
         n = len(self._variable_names)
         I_minus_B_inv = np.linalg.inv(np.eye(n) - self._B)
-        return I_minus_B_inv @ np.diag(self._omega) @ I_minus_B_inv.T
+        return np.asarray(
+            I_minus_B_inv @ np.diag(self._omega) @ I_minus_B_inv.T, dtype=np.float64
+        )
 
     @property
     def variable_names(self) -> list[str]:

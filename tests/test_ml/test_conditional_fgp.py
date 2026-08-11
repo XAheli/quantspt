@@ -243,12 +243,12 @@ class TestCovarianceFeatureExtractor:
         assert val == 1.0
 
     def test_zero_n_trace_normalized(self) -> None:
-        from quantspt.ml.conditional_fgp import _trace_normalized
+        from quantspt.experimental.conditional_fgp import _trace_normalized
 
         assert _trace_normalized(np.array([1.0]), 0) == 0.0
 
     def test_no_positive_eigenvalues_condition_number(self) -> None:
-        from quantspt.ml.conditional_fgp import _condition_number
+        from quantspt.experimental.conditional_fgp import _condition_number
 
         assert _condition_number(np.array([0.0, 0.0])) == 1.0
 

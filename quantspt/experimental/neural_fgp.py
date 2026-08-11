@@ -507,7 +507,7 @@ class NeuralFGP:
             loss = torch.nn.functional.mse_loss(f_pred, target_f)
 
             ws_opt.zero_grad()
-            loss.backward()
+            loss.backward()  # type: ignore[no-untyped-call]
             ws_opt.step()
 
         _log.info("Warm-start complete, final MSE=%.6f", loss.item())

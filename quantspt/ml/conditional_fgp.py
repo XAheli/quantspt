@@ -6,6 +6,9 @@ use, prefer ``DiversityGenerator`` with ``quantspt.universe.SPTUniverseSelector`
 
 from quantspt.experimental.conditional_fgp import *  # noqa: F403
 from quantspt.experimental.conditional_fgp import (  # explicit re-exports
+    DEFAULT_FEATURES,
+    P_MAX,
+    P_MIN,
     BoundaryRobustnessRegularizer,
     ConditionalFGPConfig,
     CovarianceConditionalFGP,
@@ -15,6 +18,9 @@ from quantspt.experimental.conditional_fgp import (  # explicit re-exports
 )
 
 __all__ = [
+    "DEFAULT_FEATURES",
+    "P_MAX",
+    "P_MIN",
     "BoundaryRobustnessRegularizer",
     "ConditionalFGPConfig",
     "CovarianceConditionalFGP",

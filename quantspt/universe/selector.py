@@ -153,7 +153,7 @@ class SPTUniverseSelector:
         # Equal-weighted proxy for gamma contribution
         n = len(tickers)
         ew = np.ones(n) / n
-        cov = returns.cov().values * 252
+        cov = np.asarray(returns.cov().values * 252, dtype=np.float64)
         gamma_c = gamma_star_contribution(ew, cov)
         gamma_c_s = pd.Series(gamma_c, index=tickers, name="gamma_contribution")
 

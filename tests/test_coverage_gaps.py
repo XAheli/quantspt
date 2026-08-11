@@ -343,7 +343,7 @@ class TestNeuralFGPCoverage:
     """Cover neural FGP import guard."""
 
     def test_require_torch_import_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from quantspt.ml.neural_fgp import _require_torch
+        from quantspt.experimental.neural_fgp import _require_torch
 
         monkeypatch.setitem(sys.modules, "torch", None)
         with pytest.raises(ImportError, match="quantspt\\[ml\\]"):
@@ -388,7 +388,7 @@ class TestNeuralFGPCoverage:
         icnn.to("cpu")
 
     def test_build_optimizer_unknown(self) -> None:
-        from quantspt.ml.neural_fgp import NeuralFGPConfig, _build_optimizer
+        from quantspt.experimental.neural_fgp import NeuralFGPConfig, _build_optimizer
 
         config = NeuralFGPConfig()
         config.optimizer = "nonexistent"

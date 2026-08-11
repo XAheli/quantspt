@@ -240,7 +240,9 @@ class CausalCovarianceEstimator:
         B, omega = self._extract_loadings()
         n = len(self._variable_names)
         I_minus_B_inv = np.linalg.inv(np.eye(n) - B)
-        sigma: NDArray[np.float64] = I_minus_B_inv @ np.diag(omega) @ I_minus_B_inv.T
+        sigma = np.asarray(
+            I_minus_B_inv @ np.diag(omega) @ I_minus_B_inv.T, dtype=np.float64
+        )
 
         return CovarianceDecomposition(
             B=B,
