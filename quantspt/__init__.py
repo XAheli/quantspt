@@ -48,6 +48,7 @@ from quantspt.models import (
 )
 from quantspt.optimization import ConstraintSet, optimize_growth_rate
 from quantspt.strategies import GammaGradientStrategy
+from quantspt.universe import SPTUniverseSelector
 
 __all__ = [
     "AtlasModel",
@@ -69,6 +70,7 @@ __all__ = [
     "SPTError",
     "SPTInvariantError",
     "SPTResult",
+    "SPTUniverseSelector",
     "SimulationDivergenceError",
     "VolatilityStabilizedMarket",
     "__version__",

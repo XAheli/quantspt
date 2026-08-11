@@ -1,16 +1,14 @@
-"""Experimental / research-stage SPT strategies.
+"""Experimental strategies for research use.
 
-This package contains strategies that are theoretically interesting but
-have NOT been demonstrated to outperform simpler approaches on real data.
+These modules explore neural and adaptive generating functions.
+For production use, prefer ``GammaGradientStrategy`` from
+``quantspt.strategies``.
 
 Research finding (Aug 2026, 50 S&P 500 stocks, 2020-2026):
   Neural generating functions are information-theoretically limited on
   available data.  The optimal p sequence has lag-1 autocorrelation of
   ~0.009 (essentially white noise), requiring ~100+ years to distinguish
   adjacent p values at 80% power.
-
-**For production use, prefer ``DiversityGenerator(p=0.3)`` with
-universe selection via ``quantspt.universe.SPTUniverseSelector``.**
 
 Modules
 -------
