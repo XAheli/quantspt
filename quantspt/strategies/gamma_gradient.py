@@ -475,7 +475,7 @@ class GammaGradientStrategy(Strategy):
         if len(valid_mkt) > 10:
             beta = float(np.cov(valid_port, valid_mkt)[0, 1] / np.var(valid_mkt))
             alpha_daily = np.mean(valid_port) - beta * np.mean(valid_mkt)
-            beta_adj_alpha_bps = alpha_daily * 252 * 10000
+            beta_adj_alpha_bps = float(alpha_daily * 252 * 10000)
         else:
             beta = 1.0
             beta_adj_alpha_bps = ann_alpha_bps
