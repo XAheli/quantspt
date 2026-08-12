@@ -18,9 +18,11 @@ Mathematical References
   "DebtRank: Too Central to Fail? Financial Networks, the FED and Systemic
   Risk," Scientific Reports 2, Art. 541.
   Iterative distress propagation:
-    h_i(t+1) = min{1, h_i(t) + Σ_j W_ij · h_j(t) · (1 − h_j(t−1))}
+    h_i(t+1) = min{1, h_i(t) + Σ_j W_ij · (h_j(t) − h_j(t−1))}
   where W_ij = exposure(i→j) / equity(i) is the relative exposure matrix,
-  and h_i ∈ [0, 1] is the distress level of node i.
+  and h_i ∈ [0, 1] is the distress level of node i.  Only the
+  *incremental* change in distress (h_j(t) − h_j(t−1)) is transmitted
+  at each step, preventing double-counting of already-propagated shocks.
 """
 
 from __future__ import annotations
@@ -247,14 +249,15 @@ class DebtRank:
     Iterative distress propagation on a network of financial exposures:
 
     .. math::
-        h_i(t+1) = \min\Bigl\{1,\; h_i(t) + \sum_j W_{ij} \cdot h_j(t)
-                     \cdot \bigl(1 - h_j(t-1)\bigr)\Bigr\}
+        h_i(t+1) = \min\Bigl\{1,\; h_i(t) + \sum_j W_{ij}
+                     \cdot \bigl(h_j(t) - h_j(t-1)\bigr)\Bigr\}
 
     where W_{ij} = exposure(i→j) / equity(i) is the impact weight, and
     h_i ∈ [0, 1] measures distress from healthy (0) to default (1).
 
-    The term (1 − h_j(t−1)) prevents double-counting: a node only
-    transmits its *incremental* distress at each step.
+    Only the incremental change in distress (h_j(t) − h_j(t−1)) is
+    transmitted at each step, preventing double-counting of shocks that
+    were already propagated in earlier rounds.
 
     Parameters
     ----------
@@ -325,7 +328,7 @@ class DebtRank:
 
         n_rounds = 0
         for _ in range(max_rounds):
-            incremental = h_curr * (1.0 - h_prev)
+            incremental = h_curr - h_prev
             contagion = self._W @ incremental
             h_next: NDArray[np.float64] = np.minimum(1.0, h_curr + contagion)
             n_rounds += 1
