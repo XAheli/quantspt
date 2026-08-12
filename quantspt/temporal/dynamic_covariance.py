@@ -19,8 +19,9 @@ Mathematical References
       Q_t = (1 − a − b) Q̄ + a ε_{t-1} ε'_{t-1} + b Q_{t-1}
       R_t = diag(Q_t)^{−1/2}  Q_t  diag(Q_t)^{−1/2}
 
-  where Q̄ is the unconditional covariance of standardized residuals,
-  a and b are scalar DCC parameters with a + b < 1.
+  where Q̄ = (1/T) Σ_t ε_t ε_t' is the unconditional (uncentered) second
+  moment of standardized residuals, and a, b are scalar DCC parameters
+  with a + b < 1.
 
 - Final covariance:
       Σ_t = D_t R_t D_t
@@ -164,7 +165,7 @@ class DCCGarch:
         safe_vols = np.where(cond_vols > 1e-15, cond_vols, 1e-15)
         std_resid = arr / safe_vols
 
-        Q_bar = np.cov(std_resid, rowvar=False)
+        Q_bar = (std_resid.T @ std_resid) / T
         Q_bar = (Q_bar + Q_bar.T) / 2.0
 
         dcc_a, dcc_b = self._fit_dcc_params(std_resid, Q_bar)
@@ -313,13 +314,16 @@ class DCCGarch:
         std_resid: NDArray[np.float64],
         Q_bar: NDArray[np.float64],
     ) -> tuple[float, float]:
-        """Estimate DCC parameters (a, b) via composite log-likelihood."""
+        """Estimate DCC parameters (a, b) via composite log-likelihood.
+
+        Uses SLSQP with an explicit constraint a + b < 1 instead of
+        returning a penalty wall (1e10) which can distort numerical
+        gradients near the boundary.
+        """
         T, _n = std_resid.shape
 
         def neg_ll(params: NDArray[np.float64]) -> float:
             a, b = params
-            if a <= 0 or b <= 0 or a + b >= 1:
-                return 1e10
 
             Q_t = Q_bar.copy()
             ll = 0.0
@@ -344,8 +348,11 @@ class DCCGarch:
             return -ll
 
         x0 = np.array([0.01, 0.95])
-        bounds = [(1e-6, 0.3), (0.5, 0.9999)]
-        res = minimize(neg_ll, x0, method="L-BFGS-B", bounds=bounds)
+        bounds = [(1e-6, 0.3), (1e-6, 0.9999)]
+        constraints = {"type": "ineq", "fun": lambda x: 0.999 - (x[0] + x[1])}
+        res = minimize(
+            neg_ll, x0, method="SLSQP", bounds=bounds, constraints=constraints
+        )
         a, b = res.x
         if a + b >= 1:
             a, b = 0.01, 0.95
