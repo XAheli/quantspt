@@ -50,6 +50,19 @@ class MarketModel(ABC):
         """Number of stocks in the market."""
         ...
 
+    @property
+    def log_space_process(self) -> bool:
+        """Whether to_stochastic_process returns a log-space process.
+
+        Returns
+        -------
+        bool
+            ``True`` if the process returned by ``to_stochastic_process``
+            operates in log-capitalisation space, ``False`` if in price space.
+            Default is ``False`` (price space).
+        """
+        return False
+
     @abstractmethod
     def drift_rates(
         self,

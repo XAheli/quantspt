@@ -90,12 +90,11 @@ class _AtlasProcess:
 
     def drift(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
         ranks = self._ranks(x)
-        return np.array([self._gamma + self._g[r] for r in ranks])
+        return self._gamma + self._g[ranks]
 
     def diffusion(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
         ranks = self._ranks(x)
-        sigma_vec = np.array([self._sigma[r] for r in ranks])
-        return np.diag(sigma_vec)
+        return np.diag(self._sigma[ranks])
 
     def evolve(
         self,
@@ -184,6 +183,11 @@ class FirstOrderModel(MarketModel):
     @property
     def n_assets(self) -> int:
         return self.n
+
+    @property
+    def log_space_process(self) -> bool:
+        """Atlas models operate in log-capitalisation space."""
+        return True
 
     # ----- Analytical results (BFK §3–5) -----
 
@@ -314,8 +318,11 @@ class FirstOrderModel(MarketModel):
             M = self.certainty_equivalent_weights()
         sigma_sq = self.sigma**2
         M_p = M**p
+        M_2p = M ** (2 * p)
         D_p = float(np.sum(M_p))
-        gamma_star = 0.5 * (1.0 - p) * float(np.sum(M_p * sigma_sq)) / D_p
+        term1 = 0.5 * (1.0 - p) * float(np.sum(M_p * sigma_sq)) / D_p
+        term2 = 0.5 * p * float(np.sum(M_2p * sigma_sq)) / (D_p**2)
+        gamma_star = term1 + term2
         return gamma_star
 
     # ----- MarketModel interface -----
@@ -327,13 +334,17 @@ class FirstOrderModel(MarketModel):
     ) -> NDArray[np.float64]:
         r"""Rank-dependent growth rates in log-cap space.
 
-        Returns γ_i(t) = γ + g_{rank(i)} − σ²_{rank(i)}/2.
+        Returns γ_i(t) = γ + g_{rank(i)}.
+
+        Since the BFK model is defined in log-capitalisation space where
+        dY_i = [γ + g_{r_i}] dt + σ_{r_i} dW_i, the drift γ + g_{r_i}
+        is already the growth rate (not the rate of return). No Ito
+        correction is needed.
         """
         order = np.argsort(-x)
         ranks = np.empty_like(order)
         ranks[order] = np.arange(self.n)
-        sigma_sq = self.sigma**2
-        return np.array([self.gamma + self.g[r] - sigma_sq[r] / 2 for r in ranks])
+        return self.gamma + self.g[ranks]
 
     def covariance_rate(
         self,

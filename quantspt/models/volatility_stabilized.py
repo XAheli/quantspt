@@ -131,6 +131,11 @@ class VolatilityStabilizedMarket(MarketModel):
     def n_assets(self) -> int:
         return self.n
 
+    @property
+    def log_space_process(self) -> bool:
+        """Volatility-stabilised models operate in log-capitalisation space."""
+        return True
+
     def stock_variance(self, mu_i: float) -> float:
         r"""Variance rate for a stock with market weight μ_i.
 

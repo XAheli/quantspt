@@ -112,13 +112,19 @@ def simulate_market(
         process = model.to_stochastic_process(x0)
         rng = np.random.default_rng(seed)
 
-        times, prices = simulate_path(
+        times, path = simulate_path(
             process,
             T=T,
             n_steps=n_steps,
             rng=rng,
             discretization=discretization,
         )
+
+        # Convert log-space paths to prices if needed
+        if hasattr(model, "log_space_process") and model.log_space_process:
+            prices = np.exp(path)
+        else:
+            prices = path
 
         total_caps = prices.sum(axis=1, keepdims=True)
         weights = prices / total_caps
