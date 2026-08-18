@@ -66,8 +66,8 @@ class MarketPanel:
             "Prices DataFrame must not be empty",
         )
         require(
-            list(self.prices.columns) == self.tickers or len(self.tickers) > 0,
-            "Tickers must match price columns",
+            list(self.prices.columns) == self.tickers,
+            f"Tickers {self.tickers} must match price columns {list(self.prices.columns)}",
         )
         require(
             self.frequency in ("daily", "weekly", "monthly"),

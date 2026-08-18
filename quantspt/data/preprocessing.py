@@ -84,7 +84,9 @@ def compute_log_returns(
     """
     if isinstance(prices, pd.DataFrame):
         ratio = prices / prices.shift(1)
-        log_rets_df = ratio.apply(np.log)
+        log_rets_df = pd.DataFrame(
+            np.log(ratio), index=ratio.index, columns=ratio.columns
+        )
         if drop_first:
             log_rets_df = log_rets_df.iloc[1:]
         return ReturnsMatrix(

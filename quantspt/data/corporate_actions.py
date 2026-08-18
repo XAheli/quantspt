@@ -159,8 +159,8 @@ def adjust_for_dividends(
             prev_prices = adjusted.loc[prev_date]
             div_amounts = dividends.loc[div_date]
             safe_prev = prev_prices.where(prev_prices > 0, other=np.nan)
-            factor = 1.0 + div_amounts / safe_prev
-            factor = factor.fillna(1.0)
+            factor = 1.0 - div_amounts / safe_prev
+            factor = factor.clip(lower=1e-8).fillna(1.0)
             mask = adjusted.index < div_date
             adjusted.loc[mask] = adjusted.loc[mask].mul(1.0 / factor, axis=1)
 

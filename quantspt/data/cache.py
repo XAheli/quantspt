@@ -91,7 +91,7 @@ class CachedComputation(Generic[T]):
         self._value: T | None = None
         self._dirty: bool = True
         self._version: int = 0
-        self._dep_versions: dict[str, int] = {}
+        self._dep_versions: dict[int, int] = {}
         self._lock = threading.RLock()
         self._stats = CacheStats()
         self._last_compute_time: float = 0.0
@@ -110,7 +110,7 @@ class CachedComputation(Generic[T]):
             for dep in self._dependencies:
                 if dep.is_dirty:
                     return True
-                if dep.version != self._dep_versions.get(dep.name, -1):
+                if dep.version != self._dep_versions.get(id(dep), -1):
                     return True
             return False
 
@@ -217,7 +217,7 @@ class CachedComputation(Generic[T]):
         self._dirty = False
         self._version += 1
         for dep in self._dependencies:
-            self._dep_versions[dep.name] = dep._version
+            self._dep_versions[id(dep)] = dep._version
 
 
 @dataclass

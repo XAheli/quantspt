@@ -211,7 +211,7 @@ class YFinanceProvider(DataProvider):
         prices_df = prices_df.dropna(how="all")
         n_dropped = n_before - len(prices_df)
 
-        prices_df = prices_df.ffill().bfill()
+        prices_df = prices_df.ffill().bfill(limit=5)
 
         remaining_nans = int(prices_df.isna().sum().sum())
         if remaining_nans > 0:

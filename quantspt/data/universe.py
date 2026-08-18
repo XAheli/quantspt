@@ -58,7 +58,7 @@ class Universe:
             "Tickers must match membership columns",
         )
         require(
-            bool(self.membership.dtypes.apply(lambda d: d is np.dtype(bool)).all()),
+            bool(self.membership.dtypes.apply(lambda d: d == np.dtype(bool)).all()),
             "Membership must be a boolean DataFrame",
         )
 
