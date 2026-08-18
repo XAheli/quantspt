@@ -71,7 +71,10 @@ class EulerMaruyamaDiscretization:
         """Advance one Euler-Maruyama step."""
         from .._typing import StochasticProcess
 
-        assert isinstance(process, StochasticProcess)
+        if not isinstance(process, StochasticProcess):
+            raise TypeError(
+                f"process must implement StochasticProcess protocol, got {type(process).__name__}"
+            )
         mu = process.drift(t0, x0)
         sigma = process.diffusion(t0, x0)
         return x0 + mu * dt + sigma @ dw
@@ -124,10 +127,17 @@ class MilsteinDiscretization:
         """Advance one Milstein step (1-D only)."""
         from .._typing import StochasticProcess
 
-        assert isinstance(process, StochasticProcess)
+        if not isinstance(process, StochasticProcess):
+            raise TypeError(
+                f"process must implement StochasticProcess protocol, got {type(process).__name__}"
+            )
         require(
             process.size() == 1,
             f"Milstein is implemented for 1-D processes, got size={process.size()}",
+        )
+        require(
+            process.factors() == 1,
+            f"Milstein requires exactly 1 factor (scalar noise), got {process.factors()} factors",
         )
 
         mu = process.drift(t0, x0)
@@ -185,7 +195,10 @@ class ExactGBMDiscretization:
         """Delegate to the process's own exact evolve."""
         from .._typing import StochasticProcess
 
-        assert isinstance(process, StochasticProcess)
+        if not isinstance(process, StochasticProcess):
+            raise TypeError(
+                f"process must implement StochasticProcess protocol, got {type(process).__name__}"
+            )
         return process.evolve(t0, x0, dt, dw)
 
 

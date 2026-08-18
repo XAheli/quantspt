@@ -76,10 +76,11 @@ def drift_integral(
     a_path: NDArray[np.float64],
     dt: float,
 ) -> float:
-    r"""Compute the drift integral ∫₀ᵀ g(t) dt via left Riemann sum.
+    r"""Compute the drift integral ∫₀ᵀ g(t) dt via trapezoidal rule.
 
     .. math::
-        \int_0^T g(t)\,dt \approx \sum_{k=0}^{N-1} g(t_k) \Delta t
+        \int_0^T g(t)\,dt \approx \Delta t \sum_{k=0}^{N-1}
+            \frac{g(t_k) + g(t_{k+1})}{2}
 
     where g(t) is the drift process from the master formula and N is the
     number of intervals (= len(mu_path) - 1).
@@ -108,15 +109,14 @@ def drift_integral(
     require(T_steps >= 2, "Need at least 2 time steps")
     require(a_path.shape[0] == T_steps, "mu_path and a_path must have same length")
 
-    total = 0.0
-    for t in range(T_steps - 1):
+    drift_values = np.empty(T_steps)
+    for t in range(T_steps):
         mu_t = mu_path[t]
         a_t = a_path[t]
         tau_mu_t = relative_covariance(a_t, mu_t)
-        g_t = G.drift(mu_t, tau_mu_t)
-        total += g_t
+        drift_values[t] = G.drift(mu_t, tau_mu_t)
 
-    return total * dt
+    return float(np.trapz(drift_values, dx=dt))
 
 
 def master_formula_decomposition(

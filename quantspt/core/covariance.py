@@ -81,7 +81,11 @@ class ConstantCovarianceRate:
     def __init__(self, a: NDArray[np.float64]) -> None:
         require(a.ndim == 2, f"Covariance must be 2-D, got shape {a.shape}")
         require(a.shape[0] == a.shape[1], "Covariance must be square")
-        self._a = a
+        require(
+            bool(np.allclose(a, a.T, atol=1e-12)),
+            f"Covariance must be symmetric, max asymmetry={float(np.max(np.abs(a - a.T))):.2e}",
+        )
+        self._a = a.copy()
 
     def covariance_at(self, t: float) -> NDArray[np.float64]:
         """Return constant covariance matrix regardless of t."""
@@ -127,8 +131,8 @@ class RollingCovarianceRate:
             interpolation in ("nearest", "linear"),
             f"interpolation must be 'nearest' or 'linear', got '{interpolation}'",
         )
-        self._times = times
-        self._covariances = covariances
+        self._times = times.copy()
+        self._covariances = covariances.copy()
         self._interpolation = interpolation
 
     def covariance_at(self, t: float) -> NDArray[np.float64]:

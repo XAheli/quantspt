@@ -218,7 +218,7 @@ class DiversityGenerator(GeneratingFunction):
 
         D_i G_p = S^{1/p - 1} μ_i^{p-1}
 
-        D²_{ij} G_p = S^{1/p - 2} [(1/p - 1) μ_i^{p-1} μ_j^{p-1}
+        D²_{ij} G_p = S^{1/p - 2} [(1-p) μ_i^{p-1} μ_j^{p-1}
                        + S (p-1) μ_i^{p-2} δ_{ij}]
         """
         p = self._p
@@ -282,11 +282,19 @@ class EntropyGenerator(GeneratingFunction):
 
     def __call__(self, mu: NDArray[np.float64]) -> float:
         """G(μ) = exp(H(μ)) = exp(-Σ μ_i log μ_i)."""
+        require(
+            bool(np.all(mu > 0)),
+            "All market weights must be strictly positive for entropy generator",
+        )
         H = -float(np.sum(mu * np.log(mu)))
         return float(np.exp(H))
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         r"""D_k log G = D_k H = -(1 + log μ_k)."""
+        require(
+            bool(np.all(mu > 0)),
+            "All market weights must be strictly positive for entropy generator",
+        )
         return -(1.0 + np.log(mu))
 
     def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
