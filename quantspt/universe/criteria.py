@@ -54,7 +54,6 @@ def idiosyncratic_volatility(
     require(len(returns) >= 20, "need >= 20 observations for a meaningful estimate")
 
     mkt = np.asarray(market_returns.values, dtype=np.float64)
-    mkt_var = float(np.var(mkt, ddof=1))
 
     result: dict[str, float] = {}
     for ticker in returns.columns:
@@ -64,7 +63,8 @@ def idiosyncratic_volatility(
             result[ticker] = np.nan
             continue
         y_v, m_v = y[valid], mkt[valid]
-        beta = np.cov(y_v, m_v, ddof=1)[0, 1] / max(mkt_var, 1e-15)
+        cov_matrix = np.cov(y_v, m_v, ddof=1)
+        beta = cov_matrix[0, 1] / max(cov_matrix[1, 1], 1e-15)
         resid = y_v - beta * m_v
         result[ticker] = float(np.std(resid, ddof=1) * np.sqrt(252))
 

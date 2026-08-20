@@ -188,6 +188,11 @@ class DCCGarch:
             np.fill_diagonal(R_t, 1.0)
             R_t = np.clip(R_t, -1.0, 1.0)
             R_t = (R_t + R_t.T) / 2.0
+            eigvals, eigvecs = np.linalg.eigh(R_t)
+            if eigvals[0] < 1e-8:
+                eigvals = np.maximum(eigvals, 1e-8)
+                R_t = eigvecs @ np.diag(eigvals) @ eigvecs.T
+                np.fill_diagonal(R_t, 1.0)
 
             correlations[t] = R_t
             D_t = np.diag(cond_vols[t])

@@ -32,6 +32,7 @@ Monoyios & Pricilia, arXiv:2506.19715, June 2025.
 
 from __future__ import annotations
 
+import threading
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -99,6 +100,7 @@ class TorchModelWrapper:
         self._offset = positivity_offset
         self._negate = negate
         self._device = device
+        self._precision_lock = threading.Lock()
         self._model.to(device)
         self._model.eval()
 
@@ -150,10 +152,11 @@ class TorchModelWrapper:
         import torch
 
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._device)
-        self._model.double()
-        with torch.no_grad():
-            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
-        self._model.float()
+        with self._precision_lock:
+            self._model.double()
+            with torch.no_grad():
+                G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+            self._model.float()
         return float(G_val.item())
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -169,12 +172,13 @@ class TorchModelWrapper:
             mu, dtype=torch.float64, device=self._device
         ).requires_grad_(True)
 
-        self._model.double()
-        G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
-        G_val = torch.clamp(G_val, min=1e-8)
-        log_G = torch.log(G_val)
-        (grad,) = torch.autograd.grad(log_G, mu_t)
-        self._model.float()
+        with self._precision_lock:
+            self._model.double()
+            G_val = self._G_value_torch(mu_t.unsqueeze(0)).squeeze()
+            G_val = torch.clamp(G_val, min=1e-8)
+            log_G = torch.log(G_val)
+            (grad,) = torch.autograd.grad(log_G, mu_t)
+            self._model.float()
 
         return grad.detach().cpu().numpy()
 
@@ -186,7 +190,6 @@ class TorchModelWrapper:
         """
         import torch
 
-        self._model.double()
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._device)
 
         def G_func(x: torch.Tensor) -> torch.Tensor:
@@ -194,8 +197,10 @@ class TorchModelWrapper:
                 return -self._model(x.unsqueeze(0)).squeeze() + self._offset
             return self._model(x.unsqueeze(0)).squeeze()
 
-        H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
-        self._model.float()
+        with self._precision_lock:
+            self._model.double()
+            H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
+            self._model.float()
         H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
         return (H_np + H_np.T) / 2.0
 

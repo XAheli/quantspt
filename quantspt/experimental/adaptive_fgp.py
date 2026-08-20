@@ -484,7 +484,12 @@ class AdaptiveFGP:
         return grad_base + grad_h.detach().cpu().numpy()
 
     def hessian(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
-        """D²G_θ(μ) via autograd."""
+        """D²G_θ(μ) via analytical product rule.
+
+        For G_θ = G_base * exp(h_θ), the product rule gives:
+            D²G = exp(h) * [D²G_base + 2*DG_base*Dh' + G_base*(D²h + Dh*Dh')]
+        where DG_base = G_base * D(log G_base).
+        """
         import torch
 
         if not self._fitted:
@@ -493,20 +498,50 @@ class AdaptiveFGP:
         corr = self._correction
         assert corr is not None
         corr.double()
-        mu_t = torch.tensor(mu, dtype=torch.float64, device=self._config.device)
 
-        def G_func(x: torch.Tensor) -> torch.Tensor:
-            mu_np = x.detach().cpu().numpy()
-            G_base_val = self._base(mu_np)
-            h_val = corr(x.unsqueeze(0)).squeeze()
-            return torch.tensor(G_base_val, dtype=x.dtype, device=x.device) * torch.exp(
-                h_val
-            )
+        # Compute h(mu), grad_h, and H_h via torch autograd
+        mu_t = torch.tensor(
+            mu, dtype=torch.float64, device=self._config.device
+        ).requires_grad_(True)
 
-        H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
+        h_val = corr(mu_t.unsqueeze(0)).squeeze(0)
+        exp_h = torch.exp(h_val).item()
+
+        # First derivative of h
+        (grad_h_t,) = torch.autograd.grad(h_val, mu_t, create_graph=True)
+        grad_h = grad_h_t.detach().cpu().numpy()
+
+        # Hessian of h via torch autograd
+        n = len(mu)
+        H_h = np.zeros((n, n), dtype=np.float64)
+        for i in range(n):
+            (grad2,) = torch.autograd.grad(grad_h_t[i], mu_t, retain_graph=(i < n - 1))
+            H_h[i, :] = grad2.detach().cpu().numpy()
+
         corr.float()
-        H_np = H.detach().cpu().numpy()  # type: ignore[union-attr]
-        return (H_np + H_np.T) / 2.0
+
+        # Get G_base_val, grad_log_G_base, and H_G_base from the base generator
+        G_base_val = self._base(mu)
+        grad_log_G_base = self._base.log_gradient(mu)
+        H_G_base = self._base.hessian(mu)
+
+        # DG_base = G_base * grad_log_G_base
+        DG_base = G_base_val * grad_log_G_base
+
+        # Dh (already computed as grad_h)
+        Dh = grad_h
+
+        # Apply the full product rule:
+        # D²G = exp(h) * [D²G_base + G_base*(D²h + Dh*Dh') + 2*DG_base*Dh']
+        H_total = (
+            exp_h * H_G_base
+            + exp_h * G_base_val * (H_h + np.outer(Dh, Dh))
+            + exp_h * (np.outer(DG_base, Dh) + np.outer(Dh, DG_base))
+        )
+
+        # Symmetrize
+        H_total = (H_total + H_total.T) / 2.0
+        return H_total
 
     def weights(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         """Portfolio weights via Fernholz formula."""
