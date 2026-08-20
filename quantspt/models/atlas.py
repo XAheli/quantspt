@@ -227,7 +227,7 @@ class FirstOrderModel(MarketModel):
             \frac{\exp(\rho_{n-1} + \cdots + \rho_k)}
                  {\sum_j \exp(\rho_{n-1} + \cdots + \rho_j)}
 
-        where :math:`\rho_k = (\sigma^2_k + \sigma^2_{k+1}) / \lambda_{k,k+1}`.
+        where :math:`\rho_k = (\sigma^2_k + \sigma^2_{k+1}) / (2 \lambda_{k,k+1})`.
 
         Returns
         -------
@@ -318,11 +318,9 @@ class FirstOrderModel(MarketModel):
             M = self.certainty_equivalent_weights()
         sigma_sq = self.sigma**2
         M_p = M**p
-        M_2p = M ** (2 * p)
         D_p = float(np.sum(M_p))
-        term1 = 0.5 * (1.0 - p) * float(np.sum(M_p * sigma_sq)) / D_p
-        term2 = 0.5 * p * float(np.sum(M_2p * sigma_sq)) / (D_p**2)
-        gamma_star = term1 + term2
+        pi = M_p / D_p
+        gamma_star = 0.5 * float(np.sum(pi * (1.0 - pi) * sigma_sq))
         return gamma_star
 
     # ----- MarketModel interface -----

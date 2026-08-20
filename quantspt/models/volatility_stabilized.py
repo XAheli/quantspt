@@ -67,12 +67,12 @@ class _VolStabProcess:
         return caps / np.sum(caps)
 
     def drift(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
-        mu = self._weights_from_log_caps(x)
+        mu = np.maximum(self._weights_from_log_caps(x), 1e-15)
         sigma_sq_over_n = self._sigma**2 / self._n
         return np.full(self._n, 0.5 * self._sigma**2) - 0.5 * sigma_sq_over_n / mu
 
     def diffusion(self, t: float, x: NDArray[np.float64]) -> NDArray[np.float64]:
-        mu = self._weights_from_log_caps(x)
+        mu = np.maximum(self._weights_from_log_caps(x), 1e-15)
         sigma_i = self._sigma / np.sqrt(self._n * mu)
         return np.diag(sigma_i)
 

@@ -25,6 +25,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .._typing import StochasticProcess
+from ..errors import SPTInvariantError
 
 __all__ = ["MarketModel"]
 
@@ -159,5 +160,9 @@ class MarketModel(ABC):
         ndarray of shape (n,)
             Market weights summing to 1.
         """
-        total = np.sum(x)
+        total = float(np.sum(x))
+        if total <= 0.0:
+            raise SPTInvariantError(
+                f"Total capitalization must be positive, got {total:.2e}"
+            )
         return x / total
