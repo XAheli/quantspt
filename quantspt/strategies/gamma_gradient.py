@@ -531,7 +531,10 @@ class GammaGradientStrategy(Strategy):
             weights = decay ** np.arange(T - 1, -1, -1)
             weights /= weights.sum()
             centered = returns - np.average(returns, axis=0, weights=weights)
-            cov = np.asarray((centered * weights[:, None]).T @ centered)
+            cov_biased = np.asarray((centered * weights[:, None]).T @ centered)
+            sum_w2 = float(np.sum(weights**2))
+            correction = 1.0 / (1.0 - sum_w2) if sum_w2 < 1.0 - 1e-12 else 1.0
+            cov = cov_biased * correction
         else:
             cov = np.asarray(np.cov(returns, rowvar=False, bias=False))
 

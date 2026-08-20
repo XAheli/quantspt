@@ -190,12 +190,9 @@ def permutation_test(
     observed = float(np.mean(excess))
     n = len(excess)
 
-    count_ge = 0
-    for _ in range(n_permutations):
-        signs = rng.choice(np.array([-1.0, 1.0]), size=n)
-        perm_stat = float(np.mean(signs * excess))
-        if perm_stat >= observed:
-            count_ge += 1
+    signs = rng.choice(np.array([-1.0, 1.0]), size=(n_permutations, n))
+    perm_stats = signs @ excess / n
+    count_ge = int(np.sum(perm_stats >= observed))
 
     p_value = (count_ge + 1) / (n_permutations + 1)
 

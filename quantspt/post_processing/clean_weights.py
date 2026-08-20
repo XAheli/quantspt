@@ -138,11 +138,18 @@ def enforce_bounds(
     require(lower >= 0.0, f"lower bound must be non-negative, got {lower}")
     require(upper <= 1.0, f"upper bound must be <= 1.0, got {upper}")
 
-    clipped = np.clip(weights, lower, upper)
-    total = clipped.sum()
-    require(total > 0, "all clipped weights are zero; cannot renormalise")
+    result = np.clip(weights, lower, upper)
+    for _ in range(50):
+        total = result.sum()
+        require(total > 0, "all clipped weights are zero; cannot renormalise")
+        result = result / total
+        result = np.clip(result, lower, upper)
+        if abs(result.sum() - 1.0) < 1e-10:
+            break
 
-    result = clipped / total
+    total = result.sum()
+    if total > 0:
+        result = result / total
     ensure(
         abs(result.sum() - 1.0) < 1e-10,
         "bounded weights must sum to 1",

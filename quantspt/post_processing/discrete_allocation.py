@@ -76,10 +76,12 @@ def greedy_allocation(
 
     n = len(weights)
     target_allocations = weights * total_value
-    shares = np.zeros(n, dtype=np.intp)
+    shares = np.floor(target_allocations / prices).astype(np.intp)
 
-    remaining_cash = total_value
-    for _ in range(int(total_value / prices.min()) + 1):
+    remaining_cash = total_value - (shares.astype(np.float64) * prices).sum()
+
+    max_additional = min(int(remaining_cash / prices.min()) + 1, n * 10)
+    for _ in range(max_additional):
         current_allocations = shares.astype(np.float64) * prices
         deficits = target_allocations - current_allocations
 

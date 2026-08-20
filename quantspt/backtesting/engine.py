@@ -143,6 +143,10 @@ class BacktestEngine:
     ) -> None:
         require(returns.ndim == 2, "returns must be 2-D (T, n)")
         require(
+            bool(np.all(np.isfinite(returns))),
+            "returns must not contain NaN or Inf",
+        )
+        require(
             len(initial_weights) == returns.shape[1], "initial_weights/returns mismatch"
         )
         require(
