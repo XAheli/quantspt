@@ -196,6 +196,8 @@ class CausalStructureLearner:
         obj._prior_edges = None
         obj._forbidden_edges = None
         obj._temporal_order = None
+        obj._backend = "numpy"
+        obj._device = None
         obj._extra_kwargs = {}
         obj._discovery_object = None
 

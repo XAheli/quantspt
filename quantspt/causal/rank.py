@@ -262,7 +262,7 @@ class CausalRankAnalysis:
                 continue
 
             f_stat = ((rss_r - rss_f) / df_num) / (rss_f / df_den)
-            p_val = 1.0 - float(sp_stats.f.cdf(f_stat, df_num, df_den))
+            p_val = float(sp_stats.f.sf(f_stat, df_num, df_den))
 
             if p_val < best_p:
                 best_f, best_p, best_lag = float(f_stat), p_val, lag

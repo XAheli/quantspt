@@ -156,6 +156,8 @@ class CausalCovarianceEstimator:
         """
         obj = cls.__new__(cls)
         obj._edges = list(model.edges())
+        obj._backend = "numpy"
+        obj._device = None
         obj._model = model
         obj._variable_names = sorted(model.nodes())
         obj._fitted = True
