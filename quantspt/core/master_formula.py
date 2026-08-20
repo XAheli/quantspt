@@ -24,6 +24,8 @@ from .._preconditions import require
 from .covariance import relative_covariance
 from .generating_functions import GeneratingFunction
 
+_trapezoid = getattr(np, "trapezoid", None) or np.trapz  # type: ignore[attr-defined]
+
 __all__ = [
     "boundary_term",
     "drift_integral",
@@ -116,7 +118,7 @@ def drift_integral(
         tau_mu_t = relative_covariance(a_t, mu_t)
         drift_values[t] = G.drift(mu_t, tau_mu_t)
 
-    return float(np.trapz(drift_values, dx=dt))
+    return float(_trapezoid(drift_values, dx=dt))
 
 
 def master_formula_decomposition(

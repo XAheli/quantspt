@@ -184,11 +184,19 @@ class CausalCovarianceEstimator:
         self,
         interventions: dict[str, float],
     ) -> NDArray[np.float64]:
-        r"""Interventional covariance Σ_do under do-calculus.
+        r"""Interventional covariance Σ_do under do-calculus (analytical).
 
-        Applies graph mutilation: for each intervened variable, all
-        incoming edges are removed (``model.do(...)``), effectively
-        setting the variable to a constant.
+        Applies graph mutilation: for each intervened variable, incoming
+        edges are removed and noise variance is set to zero (the variable
+        becomes deterministic).  The interventional covariance is computed
+        analytically via:
+
+        .. math::
+            \Sigma_{\mathrm{do}} = (I - B_{\mathrm{do}})^{-1}\,
+            \Omega_{\mathrm{do}}\, (I - B_{\mathrm{do}})^{-\top}
+
+        where :math:`B_{\mathrm{do}}` has zeroed rows for intervened
+        variables and :math:`\Omega_{\mathrm{do}}` has zeroed entries.
 
         Parameters
         ----------
@@ -206,20 +214,21 @@ class CausalCovarianceEstimator:
         require(len(interventions) > 0, "At least one intervention required")
         assert self._model is not None
 
-        do_vars = list(interventions.keys())
-        do_model = self._model.do(do_vars)
-        do_model.fit(self._simulate_under_intervention(interventions))
+        B, omega = self._extract_loadings()
+        n = len(self._variable_names)
+        node_idx = {name: i for i, name in enumerate(self._variable_names)}
 
-        _mean, cov = do_model.to_joint_gaussian()
-        cov_reordered = self._reorder_cov(cov, model=do_model)
-
-        node_idx = {n: i for i, n in enumerate(self._variable_names)}
-        for var in do_vars:
+        B_do = B.copy()
+        omega_do = omega.copy()
+        for var in interventions:
             idx = node_idx[var]
-            cov_reordered[idx, :] = 0.0
-            cov_reordered[:, idx] = 0.0
+            B_do[idx, :] = 0.0
+            omega_do[idx] = 0.0
 
-        return cov_reordered
+        I_minus_B_inv = np.linalg.inv(np.eye(n) - B_do)
+        sigma_do = I_minus_B_inv @ np.diag(omega_do) @ I_minus_B_inv.T
+
+        return np.asarray(sigma_do, dtype=np.float64)
 
     def decompose(self) -> CovarianceDecomposition:
         r"""Structural decomposition of the observational covariance.
@@ -312,15 +321,6 @@ class CausalCovarianceEstimator:
         topo_order = list(nx.topological_sort(m))
         reorder = [topo_order.index(n) for n in self._variable_names]
         return np.array(cov[np.ix_(reorder, reorder)], dtype=np.float64)
-
-    def _simulate_under_intervention(
-        self,
-        interventions: dict[str, float],
-    ) -> pd.DataFrame:
-        """Generate data from the do-model for refitting."""
-        assert self._model is not None
-        samples = self._model.simulate(do=interventions, n_samples=1000)
-        return samples
 
     @staticmethod
     def _to_dataframe(

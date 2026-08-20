@@ -211,15 +211,23 @@ class YFinanceProvider(DataProvider):
         prices_df = prices_df.dropna(how="all")
         n_dropped = n_before - len(prices_df)
 
-        prices_df = prices_df.ffill().bfill(limit=5)
+        prices_df = prices_df.ffill()
+
+        remaining_nans = int(prices_df.isna().sum().sum())
+        if remaining_nans > 0:
+            prices_df = prices_df.dropna(how="any")
+
+        if prices_df.empty or len(prices_df) == 0:
+            raise DataProviderError(
+                "Data contains unresolvable NaN values after forward-fill "
+                "(no look-ahead bias: bfill is not used)."
+            )
 
         remaining_nans = int(prices_df.isna().sum().sum())
         if remaining_nans > 0:
             raise DataProviderError(
-                f"Data contains {remaining_nans} NaN values after forward/back fill."
+                f"Data contains {remaining_nans} NaN values after forward-fill."
             )
-
-        require(len(prices_df) > 0, "No valid price data after cleaning.")
 
         tickers = list(prices_df.columns)
 
