@@ -59,7 +59,7 @@ def rolling_diversity_deficit(
     require(weights.ndim == 2, f"weights must be 2-D, got shape {weights.shape}")
     require(0 < p < 1, f"p must be in (0, 1), got {p}")
 
-    deficits: NDArray[np.float64] = np.sum(weights**p, axis=1) - 1.0
+    deficits: NDArray[np.float64] = np.sum(np.maximum(weights, 0.0) ** p, axis=1) - 1.0
     return deficits
 
 
@@ -169,7 +169,7 @@ def bootstrap_diversity_ci(
             [np.arange(s, min(s + block_size, T)) for s in block_starts]
         )[:T]
         boot_weights = weights[indices]
-        deficits = np.sum(boot_weights**p, axis=1) - 1.0
+        deficits = np.sum(np.maximum(boot_weights, 0.0) ** p, axis=1) - 1.0
         delta_samples[b] = float(np.quantile(deficits, 0.05))
 
     alpha = 1.0 - confidence

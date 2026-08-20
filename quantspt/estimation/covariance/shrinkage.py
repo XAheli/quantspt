@@ -157,12 +157,14 @@ def _ledoit_wolf_intensity(
     if delta_sq < 1e-30:
         return 1.0
 
-    beta_bar_sq = 0.0
-    for t in range(T):
-        x_t = X[t : t + 1].T  # (n, 1)
-        outer = x_t @ x_t.T
-        beta_bar_sq += np.sum((outer - S) ** 2)
-    beta_bar_sq /= n**2 * T**2
+    # Vectorized computation of beta_bar_sq using algebraic identity
+    norms_sq = np.sum(X**2, axis=1)
+    term1 = float(np.sum(norms_sq**2))
+    XS = X @ S
+    term2 = 2.0 * float(np.sum(X * XS))
+    term3 = T * float(np.sum(S**2))
+    sum_beta = term1 - term2 + term3
+    beta_bar_sq = sum_beta / (n**2 * T**2)
 
     beta_sq = min(beta_bar_sq, delta_sq)
     alpha = float(np.clip(beta_sq / delta_sq, 0.0, 1.0))

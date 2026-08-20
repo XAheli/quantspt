@@ -132,7 +132,17 @@ class ConstraintSet:
         -------
         list of cvxpy.Constraint
         """
+        import warnings
+
         import cvxpy as cp
+
+        if self._custom_constraints:
+            warnings.warn(
+                f"{len(self._custom_constraints)} custom constraint(s) cannot be "
+                "converted to CVXPY expressions and will NOT be enforced during "
+                "optimization. Use verify() to check post-hoc.",
+                stacklevel=2,
+            )
 
         constraints: list[object] = []
 

@@ -27,7 +27,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .._preconditions import require
-from ..errors import InfeasibleError, OptimizationError
+from ..errors import InfeasibleError, OptimizationError, SPTInvariantError
 
 __all__ = [
     "optimize_growth_rate",
@@ -120,6 +120,17 @@ def optimize_growth_rate(
         f"Covariance shape {cov_matrix.shape} incompatible with {n} assets",
     )
     require(min_weight <= max_weight, "min_weight must be <= max_weight")
+
+    # Enforce PSD property on covariance matrix
+    cov_matrix = (cov_matrix + cov_matrix.T) / 2.0
+    min_eig = float(np.min(np.linalg.eigvalsh(cov_matrix)))
+    if min_eig < -1e-6:
+        raise SPTInvariantError(
+            f"Covariance matrix is not PSD: smallest eigenvalue = {min_eig:.2e}. "
+            "Consider using a shrinkage estimator (ledoit_wolf)."
+        )
+    if min_eig < 0:
+        cov_matrix = cov_matrix - min_eig * np.eye(n)
 
     pi = cp.Variable(n)
 
