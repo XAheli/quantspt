@@ -86,4 +86,5 @@ logo.svg
 output-onlinepngtools.png
 
 # Local development notes (not shipped)
-generate_*.py
+*.local.md
+*.local.py
