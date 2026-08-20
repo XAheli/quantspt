@@ -137,6 +137,11 @@ def enforce_bounds(
     require(lower <= upper, f"lower ({lower}) must be <= upper ({upper})")
     require(lower >= 0.0, f"lower bound must be non-negative, got {lower}")
     require(upper <= 1.0, f"upper bound must be <= 1.0, got {upper}")
+    n = len(weights)
+    require(
+        n * lower <= 1.0 + 1e-10,
+        f"Infeasible: {n} weights * lower bound {lower} = {n * lower:.4f} > 1.0",
+    )
 
     result = np.clip(weights, lower, upper)
     for _ in range(50):

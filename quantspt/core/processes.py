@@ -324,7 +324,10 @@ def simulate_path(
     """
     from .._typing import StochasticProcess
 
-    assert isinstance(process, StochasticProcess)
+    if not isinstance(process, StochasticProcess):
+        raise TypeError(
+            f"process must implement StochasticProcess protocol, got {type(process).__name__}"
+        )
 
     dt = T / n_steps
     sqrt_dt = np.sqrt(dt)
@@ -345,7 +348,11 @@ def simulate_path(
         if discretization is not None:
             from .._typing import Discretization
 
-            assert isinstance(discretization, Discretization)
+            if not isinstance(discretization, Discretization):
+                raise TypeError(
+                    f"discretization must implement Discretization protocol, "
+                    f"got {type(discretization).__name__}"
+                )
             path[k + 1] = discretization.evolve(process, t_k, x_k, dt, dw)
         else:
             path[k + 1] = process.evolve(t_k, x_k, dt, dw)
