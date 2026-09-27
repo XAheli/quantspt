@@ -166,7 +166,9 @@ class TestNeuralFGPTraining:
             epochs=50,
             train_window=50,
             eval_window=10,
-            learning_rate=5e-3,
+            # Library default lr. At 5e-3 the adaptive optimizer steps into a
+            # saturated state and the loss ends up higher than it started.
+            learning_rate=1e-4,
             seed=42,
         )
         model = NeuralFGP(n_assets=5, config=config)
@@ -569,7 +571,8 @@ class TestNeuralFGPGPUConsistency:
             epochs=50,
             train_window=50,
             eval_window=10,
-            learning_rate=5e-3,
+            # Library default lr — see test_fit_reduces_loss for why 5e-3 fails.
+            learning_rate=1e-4,
             seed=42,
             device="cuda",
         )

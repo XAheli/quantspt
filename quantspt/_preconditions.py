@@ -6,10 +6,12 @@ producing rich error messages that reference the violated condition.
 
 from __future__ import annotations
 
+import numpy as np
+
 from .errors import SPTInvariantError
 
 
-def require(condition: bool, message: str) -> None:
+def require(condition: bool | np.bool_, message: str) -> None:
     """Check a precondition; raise on violation.
 
     Use at function entry to validate inputs against mathematical requirements
@@ -18,7 +20,7 @@ def require(condition: bool, message: str) -> None:
     Parameters
     ----------
     condition
-        Boolean expression that must be ``True``.
+        Boolean expression (Python or NumPy boolean) that must be ``True``.
     message
         Human-readable description of the requirement.
 
@@ -31,7 +33,7 @@ def require(condition: bool, message: str) -> None:
         raise SPTInvariantError(f"Precondition failed: {message}")
 
 
-def ensure(condition: bool, message: str) -> None:
+def ensure(condition: bool | np.bool_, message: str) -> None:
     """Check a postcondition; raise on violation.
 
     Use after computation to verify that results satisfy expected mathematical
@@ -40,7 +42,7 @@ def ensure(condition: bool, message: str) -> None:
     Parameters
     ----------
     condition
-        Boolean expression that must be ``True``.
+        Boolean expression (Python or NumPy boolean) that must be ``True``.
     message
         Human-readable description of the guarantee.
 

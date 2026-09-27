@@ -73,7 +73,7 @@ class TestToLatex:
     def test_exports_svg(self, mpl_fig, output_dir) -> None:
         path = to_latex(mpl_fig, output_dir / "fig.svg")
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "<svg" in content
 
     def test_creates_directory(self, mpl_fig, tmp_path) -> None:
@@ -114,14 +114,14 @@ class TestToHtml:
     def test_matplotlib_svg_export(self, mpl_fig, output_dir) -> None:
         path = to_html(mpl_fig, output_dir / "fig.html")
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "<svg" in content
         assert "<!DOCTYPE html>" in content
 
     def test_matplotlib_partial_html(self, mpl_fig, output_dir) -> None:
         path = to_html(mpl_fig, output_dir / "fig.html", full_html=False)
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "<svg" in content
         assert "<html>" not in content
 
@@ -139,7 +139,7 @@ class TestGenerateReport:
     def test_html_report(self, backtest_result, output_dir) -> None:
         path = generate_report(backtest_result, output_dir / "report.html")
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "Performance Metrics" in content
         assert "Cumulative Returns" in content
         assert "0.6700" in content  # sharpe ratio
@@ -148,28 +148,28 @@ class TestGenerateReport:
         path = generate_report(
             backtest_result, output_dir / "report.html", title="My Strategy"
         )
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "My Strategy" in content
 
     def test_html_no_charts(self, backtest_result, output_dir) -> None:
         path = generate_report(
             backtest_result, output_dir / "report.html", include_charts=False
         )
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "Cumulative Returns" not in content
 
     def test_html_no_metrics(self, backtest_result, output_dir) -> None:
         path = generate_report(
             backtest_result, output_dir / "report.html", include_metrics=False
         )
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "Performance Metrics" not in content
 
     def test_html_no_weights(self, backtest_result, output_dir) -> None:
         path = generate_report(
             backtest_result, output_dir / "report.html", include_weights=False
         )
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "Final Portfolio Weights" not in content
 
     def test_pdf_report(self, backtest_result, output_dir) -> None:
@@ -182,7 +182,7 @@ class TestGenerateReport:
             backtest_result, output_dir / "report.tex", format="latex"
         )
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert r"\documentclass" in content
         assert "Sharpe Ratio" in content
         assert r"\begin{tabular}" in content
@@ -206,7 +206,7 @@ class TestGenerateReport:
 
         path = generate_report(FakeResult(), output_dir / "obj.html")
         assert path.exists()
-        content = path.read_text()
+        content = path.read_text(encoding="utf-8")
         assert "1.5000" in content
 
     def test_creates_parent_directories(self, backtest_result, tmp_path) -> None:

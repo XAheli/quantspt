@@ -89,8 +89,11 @@ def pairwise_correlation_score(returns: pd.DataFrame) -> pd.Series:
     """
     require(returns.shape[1] >= 2, "need >= 2 stocks")
     corr = returns.corr()
-    np.fill_diagonal(corr.values, 0.0)
-    avg = corr.abs().mean(axis=1)
+    # ``corr.values`` may be a read-only view (pandas >= 3), so build a writable
+    # copy before zeroing the diagonal instead of mutating the frame's buffer.
+    values = np.abs(corr.to_numpy(copy=True))
+    np.fill_diagonal(values, 0.0)
+    avg = pd.DataFrame(values, index=corr.index, columns=corr.columns).mean(axis=1)
     avg.name = "avg_correlation"
     return avg
 

@@ -736,5 +736,7 @@ def test_generate_validation_report():
 
     lines.append("")
 
-    (BENCHMARKS_DIR / "real_data_validation.md").write_text("\n".join(lines) + "\n")
+    (BENCHMARKS_DIR / "real_data_validation.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
     print(f"\nReport saved to {BENCHMARKS_DIR / 'real_data_validation.md'}")

@@ -282,9 +282,8 @@ def build_granger_network(
             try:
                 with _warnings.catch_warnings():
                     _warnings.simplefilter("ignore", FutureWarning)
-                    result = grangercausalitytests(
-                        pair_data, maxlag=max_lag, verbose=False
-                    )
+                    # statsmodels >= 0.15 dropped the ``verbose`` argument.
+                    result = grangercausalitytests(pair_data, maxlag=max_lag)
                 best_p = min(
                     result[lag][0]["ssr_ftest"][1] for lag in range(1, max_lag + 1)
                 )

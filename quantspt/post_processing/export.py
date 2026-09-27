@@ -147,5 +147,5 @@ def to_json(
             ]
         }
 
-    path.write_text(json.dumps(data, indent=2))
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return path

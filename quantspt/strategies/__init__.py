@@ -21,11 +21,12 @@ Example
 -------
 >>> from quantspt.strategies import GammaGradientStrategy
 >>> import numpy as np
->>> strategy = GammaGradientStrategy(lambda_scale=0.1, max_weight=0.05)
+>>> # max_weight must satisfy n * max_weight >= 1 (here n = 5)
+>>> strategy = GammaGradientStrategy(lambda_scale=0.1, max_weight=0.25)
 >>> mu = np.array([0.3, 0.3, 0.2, 0.1, 0.1])
 >>> cov = np.diag([0.04, 0.06, 0.08, 0.10, 0.12])
 >>> weights = strategy.compute_weights(mu, cov)
->>> weights.sum()  # doctest: +ELLIPSIS
+>>> float(weights.sum())  # doctest: +ELLIPSIS
 1.0...
 """
 

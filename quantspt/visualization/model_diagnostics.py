@@ -218,7 +218,7 @@ def plot_residuals(
     require(residuals.ndim == 1, f"residuals must be 1-D, got ndim={residuals.ndim}")
 
     plot_title = title or "Residuals"
-    sigma = float(np.std(residuals, ddof=1))
+    sigma = float(np.std(residuals, ddof=1)) if residuals.size > 1 else 0.0
     indices = list(range(len(residuals)))
 
     if backend == "plotly":

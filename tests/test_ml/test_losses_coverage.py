@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from quantspt.ml.losses import (
     DriftIntegralLoss,

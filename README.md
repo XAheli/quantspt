@@ -39,7 +39,8 @@ from quantspt import GammaGradientStrategy
 mu = np.array([0.40, 0.25, 0.20, 0.10, 0.05])
 cov = np.diag([0.04, 0.06, 0.08, 0.10, 0.12])
 
-strategy = GammaGradientStrategy(lambda_scale=0.1, max_weight=0.05)
+# max_weight must satisfy n * max_weight >= 1 — here n = 5, so >= 0.2
+strategy = GammaGradientStrategy(lambda_scale=0.1, max_weight=0.25)
 weights = strategy.compute_weights(mu, cov)
 print(f"Weights: {np.round(weights, 4)}")
 ```

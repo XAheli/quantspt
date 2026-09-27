@@ -121,6 +121,14 @@ markers = [
 filterwarnings = [
     "error",
     "ignore::DeprecationWarning:pkg_resources",
+    # hmmlearn 0.3.x rebinds ndarray.shape in-place, deprecated in NumPy 2.5.
+    # Scoped to hmmlearn internals; drop when hmmlearn ships a NumPy 2.5 fix.
+    "ignore:Setting the shape on a NumPy array:DeprecationWarning:hmmlearn",
+    # A dependency leaves an SQLite connection to the garbage collector; pytest
+    # 8+ surfaces the resulting ResourceWarning through its unraisable-exception
+    # plugin and the "error" rule above escalates it. quantspt itself opens no
+    # SQLite connections, and the close lands on whichever test the GC runs in.
+    "ignore:.*sqlite3.Connection.*:pytest.PytestUnraisableExceptionWarning",
     "ignore:The NumPy module was reloaded:UserWarning",
 ]
 
@@ -151,6 +159,8 @@ module = [
     "pgmpy.*",
     "networkx.*",
     "sklearn.*",
+    "arch.*",
+    "statsmodels.*",
 ]
 ignore_missing_imports = true
 

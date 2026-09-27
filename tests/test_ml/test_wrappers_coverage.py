@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 import torch.nn as nn
 
 from quantspt.core.generating_functions import GeneratingFunction

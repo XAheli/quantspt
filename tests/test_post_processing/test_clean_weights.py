@@ -186,21 +186,31 @@ class TestEnforceBounds:
     """Tests for enforce_bounds: clip and renormalise."""
 
     def test_basic_clipping(self) -> None:
-        """Weights are clipped then renormalised to sum to 1."""
+        """Upper bound is enforced and weights stay on the simplex.
+
+        A single clip-and-rescale would give ``[0.556, 0.333, 0.111]`` and
+        violate the 0.5 cap; the bounded renormalisation pins the first weight
+        at the cap and splits the freed budget in the original 3:1 ratio.
+        """
         w = np.array([0.6, 0.3, 0.1])
         result = enforce_bounds(w, lower=0.0, upper=0.5)
         assert_allclose(result.sum(), 1.0, atol=1e-10)
         assert np.all(result >= 0)
-        clipped = np.clip(w, 0.0, 0.5)
-        assert_allclose(result, clipped / clipped.sum(), atol=1e-10)
+        assert np.all(result <= 0.5 + 1e-10)
+        assert_allclose(result, [0.5, 0.375, 0.125], atol=1e-10)
 
     def test_lower_bound_clipping(self) -> None:
-        """Lower bound clips then renormalises."""
+        """Lower bound is enforced; the freed budget goes to the free weights.
+
+        ``w[2] = 0.05`` sits below the 0.10 floor, so it is pinned there and
+        the remaining 0.9 is split between the other two in their original
+        16:3 ratio.
+        """
         w = np.array([0.80, 0.15, 0.05])
         result = enforce_bounds(w, lower=0.10, upper=1.0)
         assert_allclose(result.sum(), 1.0, atol=1e-10)
-        clipped = np.clip(w, 0.10, 1.0)
-        assert_allclose(result, clipped / clipped.sum(), atol=1e-10)
+        assert np.all(result >= 0.10 - 1e-10)
+        assert_allclose(result, [0.9 * 16 / 19, 0.9 * 3 / 19, 0.1], atol=1e-10)
 
     def test_default_bounds_passthrough(self) -> None:
         """Default bounds [0, 1] don't change valid weights."""
@@ -210,12 +220,17 @@ class TestEnforceBounds:
         assert_allclose(result.sum(), 1.0, atol=1e-10)
 
     def test_tight_bounds(self) -> None:
-        """Tight bounds [0.2, 0.4] clip then renormalise."""
+        """Tight bounds [0.2, 0.4] are both enforced.
+
+        ``w[0] = 0.5`` pins at the 0.4 cap; the remaining 0.6 keeps the 3:2
+        ratio of the other two.
+        """
         w = np.array([0.5, 0.3, 0.2])
         result = enforce_bounds(w, lower=0.2, upper=0.4)
         assert_allclose(result.sum(), 1.0, atol=1e-10)
-        clipped = np.clip(w, 0.2, 0.4)
-        assert_allclose(result, clipped / clipped.sum(), atol=1e-10)
+        assert np.all(result >= 0.2 - 1e-10)
+        assert np.all(result <= 0.4 + 1e-10)
+        assert_allclose(result, [0.4, 0.36, 0.24], atol=1e-10)
 
     def test_invalid_bounds_raises(self) -> None:
         """lower > upper raises."""
@@ -261,11 +276,18 @@ class TestEnforceBounds:
         assert_allclose(result, [1.0], atol=1e-10)
 
     def test_large_portfolio_bounds(self) -> None:
-        """100-asset portfolio clips and renormalises."""
+        """100-asset portfolio: bounds enforced, sum preserved, idempotent.
+
+        The single-step expectation ``clip(w)/sum(clip(w))`` violates the
+        0.005 floor for 46 of the 100 weights in this sample, so the guarantee
+        (rather than the discarded one-step value) is asserted.
+        """
         rng = np.random.default_rng(42)
         w = rng.dirichlet(np.ones(100))
         result = enforce_bounds(w, lower=0.005, upper=0.05)
         assert_allclose(result.sum(), 1.0, atol=1e-10)
-        assert np.all(result >= 0)
-        clipped = np.clip(w, 0.005, 0.05)
-        assert_allclose(result, clipped / clipped.sum(), atol=1e-10)
+        assert np.all(result >= 0.005 - 1e-10)
+        assert np.all(result <= 0.05 + 1e-10)
+        assert_allclose(
+            enforce_bounds(result, lower=0.005, upper=0.05), result, atol=1e-12
+        )

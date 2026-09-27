@@ -616,7 +616,7 @@ class TestExportCoverage:
         ax.plot([1, 2, 3])
         out = to_html(fig, tmp_path / "test.html")
         assert out.exists()
-        content = out.read_text()
+        content = out.read_text(encoding="utf-8")
         assert "<svg" in content
 
     def test_to_html_matplotlib_fragment(self, tmp_path: Path) -> None:
@@ -648,7 +648,7 @@ class TestExportCoverage:
         }
         out = generate_report(result, tmp_path / "report.tex", format="latex")
         assert out.exists()
-        content = out.read_text()
+        content = out.read_text(encoding="utf-8")
         assert "\\begin{document}" in content
 
     def test_generate_report_latex_without_metrics(self, tmp_path: Path) -> None:
@@ -673,7 +673,7 @@ class TestExportCoverage:
         }
         out = generate_report(result, tmp_path / "report.html", format="html")
         assert out.exists()
-        content = out.read_text()
+        content = out.read_text(encoding="utf-8")
         assert "AAPL" in content
 
     def test_render_weights_dict(self, tmp_path: Path) -> None:

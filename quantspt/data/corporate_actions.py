@@ -116,12 +116,13 @@ def adjust_for_dividends(
     dividends : DataFrame of shape (T, n)
         Dividend amounts on ex-dates. Zero where no dividend.
     method : str
-        - ``'total_return'``: Reinvest dividends proportionally, creating a
-          total-return index. Adjusts all pre-dividend prices upward.
+        - ``'total_return'``: Create a total-return index by back-adjusting
+          pre-dividend prices downward with the CRSP dividend factor
+          ``1 - d/p`` (d = dividend, p = previous close).
         - ``'price_only'``: No adjustment; returns prices unchanged.
           Use when dividends are tracked separately.
-        - ``'proportional'``: Adjust pre-dividend prices by the
-          dividend yield factor (1 - div/price_before_div).
+        - ``'proportional'``: Cumulative back-adjustment by the dividend
+          yield factor ``1 - d/p``; equivalent to ``'total_return'``.
 
     Returns
     -------
@@ -130,9 +131,12 @@ def adjust_for_dividends(
 
     Notes
     -----
-    The total return method ensures that the adjusted price series
-    reflects the full economic return to a buy-and-hold investor who
-    reinvests all dividends at the prevailing price.
+    The adjusted series reflects the full economic return to a buy-and-hold
+    investor who reinvests all dividends at the prevailing price.
+
+    ``'total_return'`` and ``'proportional'`` currently share one
+    implementation (the cumulative CRSP factor ``1 - d/p``); the separate
+    method names are retained for API compatibility.
     """
     require(
         method in ("total_return", "price_only", "proportional"),
@@ -148,23 +152,11 @@ def adjust_for_dividends(
 
     adjusted = prices.copy()
 
-    if method == "total_return":
-        div_dates = dividends.index[dividends.any(axis=1)]
-        for div_date in reversed(list(div_dates)):
-            date_idx_raw = prices.index.get_loc(div_date)
-            assert isinstance(date_idx_raw, int)
-            if date_idx_raw == 0:
-                continue
-            prev_date = prices.index[date_idx_raw - 1]
-            prev_prices = adjusted.loc[prev_date]
-            div_amounts = dividends.loc[div_date]
-            safe_prev = prev_prices.where(prev_prices > 0, other=np.nan)
-            factor = 1.0 - div_amounts / safe_prev
-            factor = factor.clip(lower=1e-8).fillna(1.0)
-            mask = adjusted.index < div_date
-            adjusted.loc[mask] = adjusted.loc[mask].mul(1.0 / factor, axis=1)
-
-    elif method == "proportional":
+    if method in ("total_return", "proportional"):
+        # Both methods apply the same CRSP dividend factor 1 - d/p, cumulatively
+        # from the newest ex-date backwards so that each factor is computed from
+        # the already-adjusted previous close. They are therefore numerically
+        # identical; the two names are kept for API compatibility.
         div_dates = dividends.index[dividends.any(axis=1)]
         for div_date in reversed(list(div_dates)):
             date_idx_raw = prices.index.get_loc(div_date)
@@ -317,11 +309,12 @@ def detect_splits(
 
         detected: list[tuple[Any, float]] = []
         for idx in large_moves:
-            actual_ratio = ratios[idx]
+            pos = int(idx)
+            actual_ratio = ratios[pos]
             for split_ratio in common_ratios:
                 inv_ratio = 1.0 / split_ratio
                 if abs(actual_ratio - inv_ratio) < ratio_tolerance:
-                    date = col.index[idx + 1]
+                    date = col.index[pos + 1]
                     detected.append((date, split_ratio))
                     break
 

@@ -87,7 +87,7 @@ class TestToJSON:
         result_path = to_json(sample_allocation, path)
         assert result_path.exists()
 
-        data = json.loads(result_path.read_text())
+        data = json.loads(result_path.read_text(encoding="utf-8"))
         assert "allocations" in data
         assert "leftover_cash" in data
         assert len(data["allocations"]) == 3
@@ -99,7 +99,7 @@ class TestToJSON:
         result_path = to_json(sample_weights, path)
         assert result_path.exists()
 
-        data = json.loads(result_path.read_text())
+        data = json.loads(result_path.read_text(encoding="utf-8"))
         assert "weights" in data
         assert len(data["weights"]) == 3
         assert data["weights"][0]["weight"] == pytest.approx(0.4)
@@ -108,5 +108,5 @@ class TestToJSON:
         path = tmp_path / "test.json"
         tickers = ["TSLA", "NVDA", "AMD"]
         to_json(sample_allocation, path, tickers=tickers)
-        data = json.loads(Path(path).read_text())
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
         assert data["allocations"][0]["ticker"] == "TSLA"

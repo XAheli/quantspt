@@ -363,6 +363,9 @@ class NeuralFGP:
         _require_torch()
         self._n_assets = n_assets
         self._config = config or NeuralFGPConfig()
+        # Warm-start calibration overwrites this at fit() time; it is kept on
+        # the model so the (possibly caller-owned) config is never mutated.
+        self._positivity_offset = self._config.positivity_offset
         self._loss_fn = loss_fn
         self._user_network = network
         self._network: Any | None = None
@@ -474,7 +477,7 @@ class NeuralFGP:
         alpha_calib /= alpha_calib.sum(axis=1, keepdims=True)
         calib_vals = np.sum(alpha_calib**p, axis=1) ** (1.0 / p)
         offset = float(np.max(calib_vals)) * 1.2
-        cfg.positivity_offset = offset
+        self._positivity_offset = offset
 
         _log.info(
             "Warm-starting ICNN from DiversityGenerator(p=%.2f), "
@@ -641,7 +644,7 @@ class NeuralFGP:
         with torch.enable_grad():
             mu = mu.detach().requires_grad_(True)
             f_val = net(mu.unsqueeze(0)).squeeze(0)
-            G_val = -f_val + self._config.positivity_offset
+            G_val = -f_val + self._positivity_offset
             G_val = torch.clamp(G_val, min=1e-8)
             log_G = torch.log(G_val)
             (grad_log_G,) = torch.autograd.grad(log_G, mu, create_graph=True)
@@ -687,7 +690,7 @@ class NeuralFGP:
         with torch.no_grad():
             f_val = net(mu_t).squeeze().item()
         net.float()
-        return max(-f_val + self._config.positivity_offset, 1e-10)
+        return max(-f_val + self._positivity_offset, 1e-10)
 
     def log_gradient(self, mu: NDArray[np.float64]) -> NDArray[np.float64]:
         """∇ log G_θ(μ) via autograd.
@@ -707,7 +710,7 @@ class NeuralFGP:
             mu, dtype=torch.float64, device=self._config.device
         ).requires_grad_(True)
         f_val = net(mu_t.unsqueeze(0)).squeeze(0)
-        G_val = torch.clamp(-f_val + self._config.positivity_offset, min=1e-8)
+        G_val = torch.clamp(-f_val + self._positivity_offset, min=1e-8)
         log_G = torch.log(G_val)
         (grad,) = torch.autograd.grad(log_G, mu_t)
         net.float()
@@ -730,7 +733,7 @@ class NeuralFGP:
         mu_t = torch.tensor(mu, dtype=torch.float64, device=self._config.device)
 
         def G_func(x: torch.Tensor) -> torch.Tensor:
-            return -net(x.unsqueeze(0)).squeeze() + self._config.positivity_offset
+            return -net(x.unsqueeze(0)).squeeze() + self._positivity_offset
 
         H = torch.autograd.functional.hessian(G_func, mu_t)  # type: ignore[no-untyped-call]
         net.float()

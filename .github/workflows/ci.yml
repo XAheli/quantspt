@@ -62,7 +62,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e ".[dev,viz,opt,sim]"
+      - run: pip install -e ".[all]"
       - run: pytest tests/ -m "slow and not gpu" -v --tb=short
 
   test-integration:

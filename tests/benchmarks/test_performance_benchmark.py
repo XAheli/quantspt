@@ -628,7 +628,7 @@ def test_generate_benchmark_report():
     _write_backend_md(all_results)
 
     (BENCHMARKS_DIR / "raw_timings.json").write_text(
-        json.dumps(all_results, indent=2, default=str)
+        json.dumps(all_results, indent=2, default=str), encoding="utf-8"
     )
     print(f"\nReports saved to {BENCHMARKS_DIR}/")
 
@@ -668,7 +668,9 @@ def _write_performance_md(results: dict) -> None:
             f"| {r['n']} | {r['n_days']} | {_fmt_time(r['time'])} | {r['log_rel']:+.4f} |"
         )
 
-    (BENCHMARKS_DIR / "performance.md").write_text("\n".join(lines) + "\n")
+    (BENCHMARKS_DIR / "performance.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )
 
 
 def _write_backend_md(results: dict) -> None:
@@ -718,4 +720,6 @@ def _write_backend_md(results: dict) -> None:
     for r in results["backend_rcov"]:
         lines.append(_table_row(r))
 
-    (BENCHMARKS_DIR / "backend_comparison.md").write_text("\n".join(lines) + "\n")
+    (BENCHMARKS_DIR / "backend_comparison.md").write_text(
+        "\n".join(lines) + "\n", encoding="utf-8"
+    )

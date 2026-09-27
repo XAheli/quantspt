@@ -284,7 +284,12 @@ class TestMultipleOptimizers:
         self, optimizer: str, synthetic_market_data
     ) -> None:
         mw, ret = synthetic_market_data
-        lr = 5e-3 if optimizer != "sgd" else 1e-2
+        # 5e-3 is 50x the NeuralFGPConfig default (1e-4): on this ~1e-4-scale
+        # objective the adaptive optimizers step straight into a saturated
+        # state and the reported loss gets *worse* (measured: identical
+        # -0.00030419 plateau for adam/adamw), while the default lr improves
+        # (-0.000645 -> -0.001241). SGD keeps its original lr.
+        lr = 1e-4 if optimizer != "sgd" else 1e-2
         config = NeuralFGPConfig(
             hidden_dims=[32, 16],
             epochs=30,
@@ -438,7 +443,9 @@ class TestTrainingLoop:
             epochs=50,
             train_window=50,
             eval_window=10,
-            learning_rate=5e-3,
+            # Library default lr: at 5e-3 the adaptive optimizer collapses to a
+            # saturated state (loss flat at -0.00030419) instead of improving.
+            learning_rate=1e-4,
             seed=42,
         )
         model = NeuralFGP(n_assets=5, config=config)
@@ -588,7 +595,9 @@ class TestGPUConsistency:
             epochs=30,
             train_window=50,
             eval_window=10,
-            learning_rate=5e-3,
+            # Library default lr — at 5e-3 the optimizer collapses to a
+            # saturated state and the loss ends up higher than it started.
+            learning_rate=1e-4,
             seed=42,
             device="cuda",
         )

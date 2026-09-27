@@ -109,10 +109,18 @@ def enforce_bounds(
     lower: float = 0.0,
     upper: float = 1.0,
 ) -> NDArray[np.float64]:
-    """Clip weights to [lower, upper] and renormalise to the simplex.
+    """Project weights into the box [lower, upper] while keeping them on the simplex.
 
-    Enforces box constraints that the optimiser may have slightly violated
-    due to numerical tolerance, then rescales to maintain unit sum.
+    Repeatedly clips to the box and rescales to unit sum until both hold at
+    once. The result is the fixed point of that iteration: it satisfies
+    ``lower <= w_i <= upper`` and ``sum(w) == 1``, is idempotent
+    (``enforce_bounds(enforce_bounds(w)) == enforce_bounds(w)``), and preserves
+    the relative ratios of weights that stay strictly inside the box.
+
+    A single clip-and-rescale step is *not* sufficient — rescaling can push a
+    clipped weight back outside the box. E.g. ``[0.6, 0.3, 0.1]`` with
+    ``upper=0.5`` rescales to ``[0.556, 0.333, 0.111]``, violating the cap;
+    the fixed point is ``[0.5, 0.375, 0.125]``.
 
     Parameters
     ----------

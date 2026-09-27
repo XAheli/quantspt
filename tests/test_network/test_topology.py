@@ -12,6 +12,8 @@ import pandas as pd
 import pytest
 from numpy.testing import assert_allclose
 
+pytest.importorskip("networkx")
+
 from quantspt._result import SPTResult
 from quantspt.network.topology import (
     FinancialNetwork,
